@@ -1,706 +1,696 @@
-using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
-using System.Drawing;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Windows.Forms;
 using PicExcleApp.Models;
 using PicExcleApp.Services;
 
 namespace PicExcleApp
 {
-    public partial class Form1 : Form
+  public partial class Form1 : Form
+  {
+    // 服务实例
+    private readonly ImageProcessingService _imageProcessingService;
+    private readonly OCRService _ocrService;
+    private ContentParserService _contentParserService;
+    private readonly ExcelExportService _excelExportService;
+    private readonly ConfigManagerService _configManagerService;
+
+    // 配置和数据
+    private readonly KeywordConfig _keywordConfig;
+    private readonly List<ComplaintData> _processingDataList;
+    private readonly BindingList<ComplaintData> _bindingList; // 单一BindingList实例
+
+    public Form1()
     {
-        // 服务实例
-        private readonly ImageProcessingService _imageProcessingService;
-        private readonly OCRService _ocrService;
-        private ContentParserService _contentParserService;
-        private readonly ExcelExportService _excelExportService;
-        private readonly ConfigManagerService _configManagerService;
-        
-        // 配置和数据
-        private KeywordConfig _keywordConfig;
-        private List<ComplaintData> _processingDataList;
-        
-        // UI控件
-        private DataGridView dataGridView;
-        private Panel centerPanel;
-        private PictureBox pictureBox;
-        private ListBox imageListBox;
-        
-        public Form1()
-        {
-            InitializeComponent();
-            
-            // 初始化服务
-            _imageProcessingService = new ImageProcessingService();
-            _ocrService = new OCRService();
-            _configManagerService = new ConfigManagerService();
-            _keywordConfig = _configManagerService.LoadConfig();
-            _contentParserService = new ContentParserService(_ocrService, _keywordConfig);
-            _excelExportService = new ExcelExportService();
-            
-            _processingDataList = new List<ComplaintData>();
-            
-            // 关键修复：使用BindingList作为数据源，避免CurrencyManager索引问题
-            var initialBindingList = new BindingList<ComplaintData>();
-            _processingDataList = new List<ComplaintData>(initialBindingList);
-            
-            // 初始化UI
-            InitializeUI();
-        }
-        
-        private void InitializeUI()
-        {
-            // 设置窗体属性
-            this.Text = "图片批量录入输出Excel系统";
-            this.Width = 1000;
-            this.Height = 800;
-            
-            // 创建面板和控件
-            CreateMainControls();
-            
-            // 支持拖放功能
-            this.AllowDrop = true;
-            this.DragEnter += Form1_DragEnter;
-            this.DragDrop += Form1_DragDrop;
-        }
-        
-        private void CreateMainControls()
-        {
-            // 顶部操作面板
-            Panel topPanel = new Panel
-            {
-                Dock = DockStyle.Top,
-                Height = 100,
-                BackColor = Color.LightGray
-            };
-            
-            // 导入图片按钮
-            Button importButton = new Button
-            {
-                Text = "导入图片",
-                Location = new Point(20, 20),
-                Width = 100,
-                Height = 40
-            };
-            importButton.Click += ImportButton_Click;
-            
-            // 导入小区映射按钮
-            Button importCommunityButton = new Button
-            {
-                Text = "导入小区映射",
-                Location = new Point(140, 20),
-                Width = 120,
-                Height = 40
-            };
-            importCommunityButton.Click += ImportCommunityButton_Click;
-            
-            // 导入关键词按钮
-            Button importKeywordButton = new Button
-            {
-                Text = "导入关键词",
-                Location = new Point(280, 20),
-                Width = 120,
-                Height = 40
-            };
-            importKeywordButton.Click += ImportKeywordButton_Click;
-            
-            // 处理按钮
-            Button processButton = new Button
-            {
-                Text = "开始处理",
-                Location = new Point(420, 20),
-                Width = 100,
-                Height = 40,
-                BackColor = Color.LightGreen
-            };
-            processButton.Click += ProcessButton_Click;
-            
-            // 导出Excel按钮
-            Button exportButton = new Button
-            {
-                Text = "导出Excel",
-                Location = new Point(540, 20),
-                Width = 100,
-                Height = 40,
-                BackColor = Color.LightBlue
-            };
-            exportButton.Click += ExportButton_Click;
-            
-            topPanel.Controls.AddRange(new Control[] { importButton, importCommunityButton, importKeywordButton, processButton, exportButton });
-            
-            // 进度条
-            ProgressBar progressBar = new ProgressBar
-            {
-                Name = "progressBar1",
-                Dock = DockStyle.Top,
-                Height = 30,
-                Minimum = 0,
-                Maximum = 100,
-                Value = 0
-            };
-            
-            // 日志文本框
-            RichTextBox logTextBox = new RichTextBox
-            {
-                Name = "logTextBox",
-                Dock = DockStyle.Bottom,
-                Height = 200,
-                ReadOnly = true,
-                Multiline = true,
-                ScrollBars = RichTextBoxScrollBars.Both
-            };
-            
-            // 创建主布局面板 - 使用TableLayoutPanel确保精确控制
-            TableLayoutPanel mainLayoutPanel = new TableLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                ColumnCount = 3,
-                RowCount = 1,
-                Padding = new Padding(0),
-                Margin = new Padding(0),
-                BorderStyle = BorderStyle.None
-            };
-            
-            // 设置列宽度 - 使用绝对宽度和百分比宽度组合
-            mainLayoutPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 200)); // 左侧图片列表
-            mainLayoutPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));   // 中间数据表格
-            mainLayoutPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 250)); // 右侧图片预览
-            
-            // 图片列表 - 左侧固定
-            imageListBox = new ListBox
-            {
-                Name = "imageListBox",
-                Dock = DockStyle.Fill,
-                SelectionMode = SelectionMode.MultiExtended,
-                BorderStyle = BorderStyle.Fixed3D
-            };
-            
-            // 图片预览窗口 - 右侧固定
-            pictureBox = new PictureBox
-            {
-                Name = "pictureBox",
-                Dock = DockStyle.Fill,
-                SizeMode = PictureBoxSizeMode.Zoom,
-                BorderStyle = BorderStyle.Fixed3D
-            };
-            
-            // 中间面板用于放置DataGridView
-            centerPanel = new Panel
-            {
-                Dock = DockStyle.Fill,
-                Padding = new Padding(0),
-                BorderStyle = BorderStyle.None
-            };
-            
-            // 重新配置DataGridView，启用编辑功能同时保持稳定性
-            dataGridView = new DataGridView
-            {
-                Name = "dataGridView",
-                Dock = DockStyle.Fill,
-                AutoGenerateColumns = false,
-                AllowUserToAddRows = false,
-                AllowUserToDeleteRows = false,
-                ReadOnly = false,  // 启用编辑功能
-                
-                // 关键修复：使用单元格选择模式，避免行选择带来的索引问题
-                SelectionMode = DataGridViewSelectionMode.CellSelect,
-                MultiSelect = false,
-                
-                // 基本显示设置
-                RowHeadersVisible = false,
-                ColumnHeadersVisible = true,
-                ColumnHeadersHeight = 80,
-                ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing,
-                EnableHeadersVisualStyles = true,
-                
-                // 基本边框和滚动条
-                BorderStyle = BorderStyle.FixedSingle,
-                ScrollBars = ScrollBars.Both,
-                
-                // 基本布局设置
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom | AnchorStyles.Right,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-                
-                // 启用列重排序，但禁用行操作以避免索引问题
-                AllowUserToOrderColumns = true,
-                AllowUserToResizeColumns = true,
-                AllowUserToResizeRows = false,
-                
-                // 简化边距设置
-                Padding = new Padding(0, 10, 0, 0)
-            };
-            
-            // 设置列 - 使用相同的列定义
-            dataGridView.Columns.AddRange(
-                new DataGridViewTextBoxColumn { DataPropertyName = "WorkOrderNumber", HeaderText = "工单号", Name = "WorkOrderNumber", MinimumWidth = 80 },
-                new DataGridViewTextBoxColumn { DataPropertyName = "Name", HeaderText = "姓名", Name = "Name", MinimumWidth = 60 },
-                new DataGridViewTextBoxColumn { DataPropertyName = "Phone", HeaderText = "电话", Name = "Phone", MinimumWidth = 100 },
-                new DataGridViewTextBoxColumn { DataPropertyName = "Content", HeaderText = "内容", Name = "Content", MinimumWidth = 150 },
-                new DataGridViewTextBoxColumn { DataPropertyName = "Category", HeaderText = "分类", Name = "Category", MinimumWidth = 60 },
-                new DataGridViewTextBoxColumn { DataPropertyName = "HeatingArea", HeaderText = "所属供热区域", Name = "HeatingArea", MinimumWidth = 100 },
-                new DataGridViewTextBoxColumn { DataPropertyName = "Status", HeaderText = "状态", Name = "Status", MinimumWidth = 50 },
-                new DataGridViewTextBoxColumn { DataPropertyName = "ErrorMessage", HeaderText = "错误信息", Name = "ErrorMessage", MinimumWidth = 120 },
-                new DataGridViewTextBoxColumn { DataPropertyName = "CreateTime", HeaderText = "来件日期", Name = "CreateTime", MinimumWidth = 100 }
-            );
-            
-            // 关键修复：添加全面的错误处理，抑制所有数据绑定错误
-            dataGridView.DataError += (sender, e) =>
-            {
-                // 取消错误，防止传播
-                e.Cancel = true;
-                Log($"DataGridView数据错误已抑制: {e.Exception?.Message ?? "未知错误"}");
-            };
-            
-            // 关键修复：处理所有可能导致索引越界的事件
-            dataGridView.RowEnter += (sender, e) =>
-            {
-                // 阻止行进入事件，避免CurrencyManager索引问题
-                // 清除选择状态，避免索引计算
-                dataGridView.ClearSelection();
-                dataGridView.CurrentCell = null;
-            };
-            
-            // 添加单元格编辑事件处理
-            dataGridView.CellEndEdit += (sender, e) =>
-            {
-                try
-                {
-                    // 获取编辑后的值并更新数据源
-                    if (dataGridView.Rows[e.RowIndex].DataBoundItem is ComplaintData data)
-                    {
-                        var columnName = dataGridView.Columns[e.ColumnIndex].DataPropertyName;
-                        var newValue = dataGridView.Rows[e.RowIndex].Cells[e.ColumnIndex].Value;
-                        
-                        // 更新对应的数据属性
-                        if (!string.IsNullOrEmpty(columnName) && newValue != null)
-                        {
-                            var property = typeof(ComplaintData).GetProperty(columnName);
-                            if (property != null && property.CanWrite)
-                            {
-                                property.SetValue(data, Convert.ChangeType(newValue, property.PropertyType));
-                                Log($"已更新第{e.RowIndex + 1}行的{columnName}字段");
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log($"单元格编辑保存失败: {ex.Message}");
-                }
-            };
-            
-            dataGridView.SelectionChanged += (sender, e) =>
-            {
-                // 清除选择，避免索引问题
-                if (dataGridView != null && !dataGridView.IsDisposed && dataGridView.Rows.Count > 0)
-                {
-                    dataGridView.ClearSelection();
-                    dataGridView.CurrentCell = null;
-                }
-            };
-            
-            // 禁用鼠标事件，避免索引计算
-            dataGridView.MouseDown += (sender, e) =>
-            {
-                // 只允许表头点击，阻止数据行点击
-                var hitTest = dataGridView.HitTest(e.X, e.Y);
-                if (hitTest.Type != DataGridViewHitTestType.ColumnHeader && hitTest.Type != DataGridViewHitTestType.None)
-                {
-                    // 清除选择以避免索引问题
-                    dataGridView.ClearSelection();
-                    dataGridView.CurrentCell = null;
-                }
-            };
-            
-            // 添加到中间面板
-            centerPanel.Controls.Add(dataGridView);
-            
-            // 添加到主布局面板
-            mainLayoutPanel.Controls.Add(imageListBox, 0, 0);
-            mainLayoutPanel.Controls.Add(centerPanel, 1, 0);
-            mainLayoutPanel.Controls.Add(pictureBox, 2, 0);
-            
-            // 添加到窗体
-            this.Controls.AddRange(new Control[] { logTextBox, progressBar, mainLayoutPanel, topPanel });
-            
-            // 强制刷新布局的关键事件
-            this.Shown += (sender, e) =>
-            {
-                this.BeginInvoke(new Action(() =>
-                {
-                    // 强制刷新整个控件层次
-                    this.SuspendLayout();
-                    
-                    // 确保DataGridView正确显示
-                    dataGridView.SuspendLayout();
-                    dataGridView.ColumnHeadersHeight = 80;
-                    dataGridView.ColumnHeadersVisible = true;
-                    dataGridView.Padding = new Padding(0, 10, 0, 0);  // 再次确认顶部内边距
-                    
-                    // 强制布局更新
-                    dataGridView.ResumeLayout(false);
-                    dataGridView.PerformLayout();
-                    
-                    // 更新整个窗体
-                    this.ResumeLayout(false);
-                    this.PerformLayout();
-                    
-                    // 强制重绘DataGridView
-                    dataGridView.Invalidate();
-                    dataGridView.Refresh();
-                }));
-            };
-            
-            // 窗口大小改变事件
-            this.Resize += (sender, e) =>
-            {
-                this.BeginInvoke(new Action(() =>
-                {
-                    try
-                    {
-                        // 确保列头始终可见
-                        if (dataGridView != null && !dataGridView.IsDisposed)
-                        {
-                            dataGridView.ColumnHeadersVisible = true;
-                            dataGridView.ColumnHeadersHeight = 80;  // 保持高列头
-                            dataGridView.Padding = new Padding(0, 10, 0, 0);  // 确保列头向下偏移
-                            dataGridView.Refresh();
-                            dataGridView.Update();
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Log($"Resize事件异常: {ex.Message}");
-                    }
-                }));
-            };
-            
-            // 设置数据绑定
-            dataGridView.DataSource = _processingDataList;
-        }
-        
-        private void Log(string message)
-        {
-            if (string.IsNullOrEmpty(message))
-                return;
-                
-            if (this.InvokeRequired)
-            {
-                this.Invoke(new Action<string>(Log), message);
-                return;
-            }
-            
-            RichTextBox logTextBox = this.Controls.Find("logTextBox", true).FirstOrDefault() as RichTextBox;
-            if (logTextBox != null && !logTextBox.IsDisposed)
-            {
-                logTextBox.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}\r\n");
-                logTextBox.ScrollToCaret();
-            }
-        }
-        
-        private void UpdateProgress(int progress)
-        {
-            if (this.InvokeRequired)
-            {
-                this.Invoke(new Action<int>(UpdateProgress), progress);
-                return;
-            }
-            
-            ProgressBar progressBar = this.Controls.Find("progressBar1", true).FirstOrDefault() as ProgressBar;
-            if (progressBar != null)
-            {
-                progressBar.Value = Math.Min(100, Math.Max(0, progress));
-            }
-        }
-        
-        private void Form1_DragEnter(object sender, DragEventArgs e)
-        {
-            if (e.Data.GetDataPresent(DataFormats.FileDrop))
-            {
-                e.Effect = DragDropEffects.Copy;
-            }
-        }
-        
-        private void Form1_DragDrop(object sender, DragEventArgs e)
-        {
-            string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
-            AddImagesToProcess(files);
-        }
-        
-        private void ImportButton_Click(object sender, EventArgs e)
-        {
-            using (OpenFileDialog openFileDialog = new OpenFileDialog())
-            {
-                openFileDialog.Multiselect = true;
-                openFileDialog.Filter = "图片文件|*.jpg;*.jpeg;*.png;*.bmp|所有文件|*.*";
-                
-                if (openFileDialog.ShowDialog() == DialogResult.OK)
-                {
-                    AddImagesToProcess(openFileDialog.FileNames);
-                }
-            }
-        }
-        
-        private void AddImagesToProcess(string[]? files)
-        {
-            if (files == null || files.Length == 0 || _imageProcessingService == null)
-                return;
-                
-            ListBox imageListBox = this.Controls.Find("imageListBox", true).FirstOrDefault() as ListBox;
-            if (imageListBox == null || imageListBox.IsDisposed)
-                return;
-            
-            int addedCount = 0;
-            foreach (string file in files)
-            {
-                if (!string.IsNullOrEmpty(file) && _imageProcessingService.IsSupportedImageFormat(file))
-                {
-                    if (!imageListBox.Items.Contains(file))
-                    {
-                        imageListBox.Items.Add(file);
-                        addedCount++;
-                    }
-                }
-            }
-            
-            if (addedCount > 0)
-            {
-                Log($"已添加 {addedCount} 张图片");
-            }
-        }
-        
-        private async void ProcessButton_Click(object sender, EventArgs e)
-        {
-            ListBox imageListBox = this.Controls.Find("imageListBox", true).FirstOrDefault() as ListBox;
-            if (imageListBox == null || imageListBox.Items.Count == 0)
-            {
-                MessageBox.Show("请先导入图片！");
-                return;
-            }
-            
-            _processingDataList.Clear();
-            UpdateDataGridView();
-            
-            Log("开始处理图片...");
-            await ProcessImagesAsync(imageListBox.Items.Cast<string>().ToArray());
-            Log("图片处理完成");
-        }
-        
-        private async Task ProcessImagesAsync(string[] imagePaths)
-        {
-            int totalImages = imagePaths.Length;
-            
-            await Task.Run(() =>
-            {
-                for (int i = 0; i < totalImages; i++)
-                {
-                    string imagePath = imagePaths[i];
-                    try
-                    {
-                        Log($"处理图片 {i + 1}/{totalImages}: {Path.GetFileName(imagePath)}");
-                        
-                        // 预处理图片
-                        var processedImage = _imageProcessingService.PreprocessImage(imagePath);
-                        
-                        // 文字识别
-                        string ocrText = _ocrService.RecognizeText(processedImage);
-                        
-                        // 解析数据
-                        var complaintData = _contentParserService.ParseToComplaintData(ocrText, imagePath);
-                        
-                        // 添加到结果列表
-                        this.Invoke(new Action(() =>
-                        {
-                            _processingDataList.Add(complaintData);
-                            UpdateDataGridView();
-                        }));
-                    }
-                    catch (Exception ex)
-                    {
-                        Log($"处理失败: {ex.Message}");
-                        
-                        this.Invoke(new Action(() =>
-                        {
-                            _processingDataList.Add(new ComplaintData
-                            {
-                                OriginalImagePath = imagePath,
-                                Status = "失败",
-                                ErrorMessage = ex.Message
-                            });
-                            UpdateDataGridView();
-                        }));
-                    }
-                    finally
-                    {
-                        UpdateProgress((i + 1) * 100 / totalImages);
-                    }
-                }
-            });
-        }
-        
-        private void UpdateDataGridView()
-        {
-            if (this.IsDisposed)
-                return;
-                
-            DataGridView dataGridView = this.Controls.Find("dataGridView", true).FirstOrDefault() as DataGridView;
-            if (dataGridView != null && !dataGridView.IsDisposed)
-            {
-                try
-                {
-                    // 关键修复：完全断开数据绑定，避免CurrencyManager索引问题
-                    dataGridView.DataSource = null;
-                    
-                    // 暂停布局更新
-                    dataGridView.SuspendLayout();
-                    
-                    // 清除所有状态
-                    dataGridView.CurrentCell = null;
-                    dataGridView.ClearSelection();
-                    
-                    // 使用BindingList避免直接绑定到List，提供更好的数据绑定支持
-                    if (_processingDataList != null && _processingDataList.Count > 0)
-                    {
-                        var bindingList = new System.ComponentModel.BindingList<ComplaintData>(_processingDataList);
-                        dataGridView.DataSource = bindingList;
-                        
-                        // 关键：不自动选择任何行，让用户手动选择
-                        dataGridView.CurrentCell = null;
-                        dataGridView.ClearSelection();
-                    }
-                    else
-                    {
-                        // 空列表时使用空的BindingList
-                        dataGridView.DataSource = new System.ComponentModel.BindingList<ComplaintData>();
-                    }
-                    
-                    // 恢复布局
-                    dataGridView.ResumeLayout(false);
-                    dataGridView.PerformLayout();
-                    
-                    // 再次确保没有选择任何单元格
-                    this.BeginInvoke(new Action(() =>
-                    {
-                        if (dataGridView != null && !dataGridView.IsDisposed)
-                        {
-                            dataGridView.CurrentCell = null;
-                            dataGridView.ClearSelection();
-                        }
-                    }));
-                }
-                catch (Exception ex)
-                {
-                    Log($"更新DataGridView时出错: {ex.Message}");
-                    // 安全恢复
-                    if (dataGridView != null && !dataGridView.IsDisposed)
-                    {
-                        try
-                        {
-                            dataGridView.DataSource = null;
-                            dataGridView.CurrentCell = null;
-                            dataGridView.ClearSelection();
-                            dataGridView.ResumeLayout();
-                        }
-                        catch (Exception innerEx)
-                        {
-                            Log($"恢复DataGridView状态时出错: {innerEx.Message}");
-                        }
-                    }
-                }
-            }
-        }
-        
-        private void ExportButton_Click(object sender, EventArgs e)
-        {
-            if (_processingDataList.Count == 0)
-            {
-                MessageBox.Show("没有数据可导出！");
-                return;
-            }
-            
-            using (SaveFileDialog saveFileDialog = new SaveFileDialog())
-            {
-                saveFileDialog.Filter = "Excel文件|*.xlsx";
-                saveFileDialog.FileName = $"投诉数据_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
-                
-                if (saveFileDialog.ShowDialog() == DialogResult.OK)
-                {
-                    try
-                    {
-                        _excelExportService.ExportToExcel(_processingDataList, saveFileDialog.FileName);
-                        Log($"数据已导出到: {saveFileDialog.FileName}");
-                        MessageBox.Show("导出成功！");
-                    }
-                    catch (Exception ex)
-                    {
-                        Log($"导出失败: {ex.Message}");
-                        MessageBox.Show("导出失败: " + ex.Message);
-                    }
-                }
-            }
-        }
-        
-        private void ImportCommunityButton_Click(object sender, EventArgs e)
-        {
-            using (OpenFileDialog openFileDialog = new OpenFileDialog())
-            {
-                openFileDialog.Filter = "Excel文件|*.xlsx";
-                
-                if (openFileDialog.ShowDialog() == DialogResult.OK)
-                {
-                    try
-                    {
-                        var communityMap = _excelExportService.ImportCommunityMap(openFileDialog.FileName);
-                        _keywordConfig.CommunityToAreaMap = communityMap;
-                        _configManagerService.SaveConfig(_keywordConfig);
-                        
-                        // 更新内容解析服务的配置
-                        _contentParserService = new ContentParserService(_ocrService, _keywordConfig);
-                        
-                        Log($"成功导入 {communityMap.Count} 个小区映射");
-                        MessageBox.Show("小区映射导入成功！");
-                    }
-                    catch (Exception ex)
-                    {
-                        Log($"导入失败: {ex.Message}");
-                        MessageBox.Show("导入失败: " + ex.Message);
-                    }
-                }
-            }
-        }
-        
-        private void ImportKeywordButton_Click(object sender, EventArgs e)
-        {
-            using (OpenFileDialog openFileDialog = new OpenFileDialog())
-            {
-                openFileDialog.Filter = "Excel文件|*.xlsx";
-                
-                if (openFileDialog.ShowDialog() == DialogResult.OK)
-                {
-                    try
-                    {
-                        var keywordMap = _excelExportService.ImportKeywordMap(openFileDialog.FileName);
-                        _keywordConfig.KeywordToCategoryMap = keywordMap;
-                        _configManagerService.SaveConfig(_keywordConfig);
-                        
-                        // 更新内容解析服务的配置
-                        _contentParserService = new ContentParserService(_ocrService, _keywordConfig);
-                        
-                        Log($"成功导入 {keywordMap.Count} 个关键词配置");
-                        MessageBox.Show("关键词配置导入成功！");
-                    }
-                    catch (Exception ex)
-                    {
-                        Log($"导入失败: {ex.Message}");
-                        MessageBox.Show("导入失败: " + ex.Message);
-                    }
-                }
-            }
-        }
+      InitializeComponent();
+
+      // 初始化服务
+      _imageProcessingService = new ImageProcessingService();
+      _ocrService = new OCRService();
+      _configManagerService = new ConfigManagerService();
+      _keywordConfig = _configManagerService.LoadConfig();
+      _contentParserService = new ContentParserService(_ocrService, _keywordConfig);
+      _excelExportService = new ExcelExportService();
+
+      // 初始化数据列表
+      _processingDataList = [];
+      _bindingList = new BindingList<ComplaintData>(_processingDataList); // 初始化单一BindingList实例
+
+      // 设置数据绑定
+      SetDataBinding();
     }
+
+    private void SetDataBinding()
+    {
+      // 使用BindingSource作为中间层，提高数据绑定的稳定性和可编辑性
+      BindingSource bindingSource = new()
+      {
+        DataSource = _bindingList
+      };
+
+      // 先设置数据源，添加null检查
+      if (dataGridView != null)
+      {
+        dataGridView.DataSource = bindingSource;
+
+        // 确保序号列在绑定时正确初始化
+        if (dataGridView.Columns != null && dataGridView.Columns.Contains("序号"))
+        {
+          DataGridViewColumn serialColumn = dataGridView.Columns["序号"];
+          if (serialColumn != null)
+          {
+            serialColumn.DataPropertyName = string.Empty; // 确保不绑定到任何属性
+            serialColumn.ReadOnly = true; // 设置为只读
+          }
+        }
+      }
+    }
+
+    private void Log(string message)
+    {
+      if (string.IsNullOrEmpty(message))
+      {
+        return;
+      }
+
+      if (InvokeRequired)
+      {
+        _ = Invoke(new Action<string>(Log), message);
+        return;
+      }
+
+      if (logTextBox != null && !logTextBox.IsDisposed)
+      {
+        logTextBox.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}\r\n");
+        logTextBox.ScrollToCaret();
+      }
+    }
+
+    private void UpdateProgress(int value)
+    {
+      if (InvokeRequired)
+      {
+        _ = Invoke(new Action<int>(UpdateProgress), value);
+        return;
+      }
+
+      if (progressBar != null && !progressBar.IsDisposed)
+      {
+        progressBar.Value = Math.Min(100, Math.Max(0, value));
+      }
+    }
+
+    private void Form1_DragEnter(object? sender, DragEventArgs e)
+    {
+      if (e?.Data != null && e.Data.GetDataPresent(DataFormats.FileDrop))
+      {
+        e.Effect = DragDropEffects.Copy;
+      }
+    }
+
+    private void Form1_DragDrop(object? sender, DragEventArgs e)
+    {
+      if (e?.Data != null && e.Data.GetDataPresent(DataFormats.FileDrop))
+      {
+        string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+        AddImagesToProcess(files);
+      }
+    }
+
+    private void ImportButton_Click(object? sender, EventArgs e)
+    {
+      using OpenFileDialog openFileDialog = new();
+      openFileDialog.Multiselect = true;
+      openFileDialog.Filter = "图片文件|*.jpg;*.jpeg;*.png;*.bmp|所有文件|*.*";
+
+      if (openFileDialog.ShowDialog() == DialogResult.OK)
+      {
+        AddImagesToProcess(openFileDialog.FileNames);
+      }
+    }
+
+    private void AddImagesToProcess(string[]? files)
+    {
+      if (files == null || files.Length == 0 || _imageProcessingService == null)
+      {
+        return;
+      }
+
+      if (imageListBox == null || imageListBox.IsDisposed)
+      {
+        return;
+      }
+
+      int addedCount = 0;
+      foreach (string file in files)
+      {
+        if (!string.IsNullOrEmpty(file) && _imageProcessingService.IsSupportedImageFormat(file))
+        {
+          if (!imageListBox.Items.Contains(file))
+          {
+            _ = imageListBox.Items.Add(file);
+            addedCount++;
+          }
+        }
+      }
+
+      if (addedCount > 0)
+      {
+        Log($"已添加 {addedCount} 张图片");
+      }
+    }
+
+    private async void ProcessButton_Click(object? sender, EventArgs e)
+    {
+      if (imageListBox == null || imageListBox.Items.Count == 0)
+      {
+        _ = MessageBox.Show("请先导入图片！");
+        return;
+      }
+
+      _processingDataList.Clear();
+      UpdateDataGridView();
+
+      Log("开始处理图片...");
+      await ProcessImagesAsync([.. imageListBox.Items.Cast<string>()]);
+      Log("图片处理完成");
+    }
+
+    private async Task ProcessImagesAsync(string[] imagePaths)
+    {
+      int totalImages = imagePaths?.Length ?? 0;
+
+      await Task.Run(() =>
+      {
+        if (imagePaths == null || _processingDataList == null)
+        {
+          return;
+        }
+
+        for (int i = 0; i < totalImages; i++)
+        {
+          string imagePath = imagePaths[i];
+          try
+          {
+            Log($"处理图片 {i + 1}/{totalImages}: {Path.GetFileName(imagePath)}");
+
+            // 预处理图片
+            MemoryStream? processedImage = _imageProcessingService?.PreprocessImage(imagePath);
+
+            // 文字识别
+            string ocrText = _ocrService?.RecognizeText(processedImage);
+
+            // 解析数据
+            ComplaintData? complaintData = _contentParserService?.ParseToComplaintData(ocrText, imagePath);
+            if (complaintData != null)
+            {
+              // 添加到结果列表
+              Invoke(new Action(() =>
+                      {
+                        _processingDataList.Add(complaintData);
+                        _bindingList.ResetBindings();
+                        UpdateDataGridView();
+                      }));
+            }
+          }
+          catch (Exception ex)
+          {
+            Log($"处理失败: {ex.Message}");
+
+            Invoke(new Action(() =>
+                    {
+                      _processingDataList.Add(new ComplaintData
+                      {
+                        OriginalImagePath = imagePath,
+                        Status = "失败",
+                        ErrorMessage = ex.Message
+                      });
+                      _bindingList.ResetBindings();
+                      UpdateDataGridView();
+                    }));
+          }
+          finally
+          {
+            UpdateProgress((i + 1) * 100 / totalImages);
+          }
+        }
+      });
+    }
+
+    private void UpdateDataGridView()
+    {
+      if (IsDisposed || dataGridView == null || dataGridView.IsDisposed)
+      {
+        return;
+      }
+
+      try
+      {
+        // 使用UI线程安全的方式更新DataGridView
+        if (InvokeRequired)
+        {
+          Invoke(new Action(UpdateDataGridViewSafe));
+        }
+        else
+        {
+          UpdateDataGridViewSafe();
+        }
+      }
+      catch (Exception ex)
+      {
+        Log($"更新DataGridView时出错: {ex.Message}");
+        // 安全恢复
+        if (!IsDisposed && dataGridView != null && !dataGridView.IsDisposed)
+        {
+          try
+          {
+            dataGridView.DataSource = null;
+            dataGridView.CurrentCell = null;
+            dataGridView.ClearSelection();
+            dataGridView.ResumeLayout();
+          }
+          catch (Exception innerEx)
+          {
+            Log($"恢复DataGridView状态时出错: {innerEx.Message}");
+          }
+        }
+      }
+    }
+
+    // 安全更新DataGridView的私有方法
+    private void UpdateDataGridViewSafe()
+    {
+      try
+      {
+        // 全面的null检查
+        if (dataGridView == null || dataGridView.IsDisposed)
+        {
+          Log("DataGridView为null或已释放，无法更新");
+          return;
+        }
+
+        // 暂停布局更新以提高性能
+        dataGridView.SuspendLayout();
+
+        // 确保DataGridView是可编辑的
+        dataGridView.ReadOnly = false;
+
+        // 刷新BindingList以更新数据
+        _bindingList?.ResetBindings();
+
+        // 确保所有编辑相关设置正确
+        dataGridView.Enabled = true;
+        dataGridView.EditMode = DataGridViewEditMode.EditOnEnter;
+
+        // 为序号列添加自动生成功能
+        if (dataGridView.Rows != null && dataGridView.Columns != null && dataGridView.Columns.Contains("序号"))
+        {
+          try
+          {
+            int serialColumnIndex = dataGridView.Columns["序号"].Index;
+            foreach (DataGridViewRow row in dataGridView.Rows)
+            {
+              if (row != null && row.Cells != null && serialColumnIndex >= 0 && row.Cells.Count > serialColumnIndex)
+              {
+                DataGridViewCell cell = row.Cells[serialColumnIndex];
+                if (cell != null)
+                {
+                  cell.Value = row.Index + 1;
+                }
+              }
+            }
+          }
+          catch (Exception ex)
+          {
+            Log($"设置序号列值时出错: {ex.Message}");
+          }
+        }
+
+        // 设置列的可编辑性
+        if (dataGridView.Columns != null)
+        {
+          foreach (DataGridViewColumn column in dataGridView.Columns)
+          {
+            if (column != null)
+            {
+              if (column.Name == "序号")
+              {
+                column.ReadOnly = true; // 序号列设为只读
+              }
+              else
+              {
+                column.ReadOnly = false; // 其他列保持可编辑
+              }
+            }
+          }
+        }
+
+        // 刷新以确保显示最新数据
+        dataGridView.Refresh();
+
+        // 恢复布局更新
+        dataGridView.ResumeLayout();
+
+        // 安全的日志记录
+        try
+        {
+          Log($"DataGridView已更新，当前行数: {dataGridView.Rows?.Count ?? 0}");
+        }
+        catch { }
+      }
+      catch (Exception ex)
+      {
+        Log($"安全更新DataGridView时出错: {ex.Message}");
+      }
+    }
+
+    private void ExportButton_Click(object? sender, EventArgs e)
+    {
+      if (_processingDataList.Count == 0)
+      {
+        _ = MessageBox.Show("没有数据可导出！");
+        return;
+      }
+
+      using SaveFileDialog saveFileDialog = new();
+      saveFileDialog.Filter = "Excel文件|*.xlsx";
+      saveFileDialog.FileName = $"投诉数据_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+
+      if (saveFileDialog.ShowDialog() == DialogResult.OK)
+      {
+        try
+        {
+          _excelExportService.ExportToExcel(_processingDataList, saveFileDialog.FileName);
+          Log($"数据已导出到: {saveFileDialog.FileName}");
+          _ = MessageBox.Show("导出成功！");
+        }
+        catch (Exception ex)
+        {
+          Log($"导出失败: {ex.Message}");
+          _ = MessageBox.Show("导出失败: " + ex.Message);
+        }
+      }
+    }
+
+    private void ImportCommunityButton_Click(object? sender, EventArgs e)
+    {
+      using OpenFileDialog openFileDialog = new();
+      openFileDialog.Filter = "Excel文件|*.xlsx";
+
+      if (openFileDialog.ShowDialog() == DialogResult.OK)
+      {
+        try
+        {
+          Dictionary<string, string> communityMap = _excelExportService.ImportCommunityMap(openFileDialog.FileName);
+          _keywordConfig.CommunityToAreaMap = communityMap;
+          _configManagerService.SaveConfig(_keywordConfig);
+
+          // 更新内容解析服务的配置
+          _contentParserService = new ContentParserService(_ocrService, _keywordConfig);
+
+          Log($"成功导入 {communityMap.Count} 个小区映射");
+          _ = MessageBox.Show("小区映射导入成功！");
+        }
+        catch (Exception ex)
+        {
+          Log($"导入失败: {ex.Message}");
+          _ = MessageBox.Show("导入失败: " + ex.Message);
+        }
+      }
+    }
+
+    private void ImportKeywordButton_Click(object? sender, EventArgs e)
+    {
+      using OpenFileDialog openFileDialog = new();
+      openFileDialog.Filter = "Excel文件|*.xlsx";
+
+      if (openFileDialog.ShowDialog() == DialogResult.OK)
+      {
+        try
+        {
+          Dictionary<string, string> keywordMap = _excelExportService.ImportKeywordMap(openFileDialog.FileName);
+          _keywordConfig.KeywordToCategoryMap = keywordMap;
+          _configManagerService.SaveConfig(_keywordConfig);
+
+          // 更新内容解析服务的配置
+          _contentParserService = new ContentParserService(_ocrService, _keywordConfig);
+
+          Log($"成功导入 {keywordMap.Count} 个关键词配置");
+          _ = MessageBox.Show("关键词配置导入成功！");
+        }
+        catch (Exception ex)
+        {
+          Log($"导入失败: {ex.Message}");
+          _ = MessageBox.Show("导入失败: " + ex.Message);
+        }
+      }
+    }
+
+    // 事件处理方法
+    private void dataGridView_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+    {
+      if (e.RowIndex >= 0 && e.ColumnIndex >= 0)
+      {
+        if (sender is DataGridView dgv && !dgv.ReadOnly)
+        {
+          _ = dgv.BeginEdit(true);
+          Log($"双击单元格[{e.RowIndex},{e.ColumnIndex}]开始编辑");
+        }
+      }
+    }
+
+    private void dataGridView_RowPostPaint(object sender, DataGridViewRowPostPaintEventArgs e)
+    {
+      // 确保序号列在每次行绘制后都更新，添加全面的安全检查
+      if (sender is DataGridView dgv && dgv.Columns != null && dgv.Columns.Contains("序号"))
+      {
+        try
+        {
+          if (e.RowIndex >= 0 && e.RowIndex < dgv.Rows.Count && dgv.Rows[e.RowIndex] != null)
+          {
+            int serialColumnIndex = dgv.Columns["序号"].Index;
+            if (serialColumnIndex >= 0 && dgv.Rows[e.RowIndex].Cells.Count > serialColumnIndex)
+            {
+              DataGridViewCell cell = dgv.Rows[e.RowIndex].Cells[serialColumnIndex];
+              if (cell != null)
+              {
+                cell.Value = e.RowIndex + 1;
+              }
+            }
+          }
+        }
+        catch (Exception ex)
+        {
+          Log($"更新序号列时出错: {ex.Message}");
+        }
+      }
+    }
+
+    private void dataGridView_KeyDown(object sender, KeyEventArgs e)
+    {
+      if (sender is DataGridView dgv && dgv.CurrentCell != null && !dgv.ReadOnly)
+      {
+        // 按下任何字母或数字键直接开始编辑
+        if (e.KeyCode is (>= Keys.A and <= Keys.Z) or
+            (>= Keys.D0 and <= Keys.D9) or
+            Keys.Delete or Keys.Back)
+        {
+          _ = dgv.BeginEdit(true);
+          if (dgv.CurrentCell != null)
+          {
+            Log($"键盘操作开始编辑单元格[{dgv.CurrentCell.RowIndex},{dgv.CurrentCell.ColumnIndex}]");
+          }
+        }
+      }
+    }
+
+    private void dataGridView_CellClick(object sender, DataGridViewCellEventArgs e)
+    {
+      if (e.RowIndex >= 0 && e.ColumnIndex >= 0)
+      {
+        if (sender is DataGridView dgv && !dgv.ReadOnly)
+        {
+          // 点击单元格时立即开始编辑
+          _ = dgv.BeginEdit(true);
+          Log($"用户点击单元格[{e.RowIndex},{e.ColumnIndex}]开始编辑");
+        }
+      }
+    }
+
+    private void dataGridView_DataError(object sender, DataGridViewDataErrorEventArgs e)
+    {
+      // 取消错误，防止传播
+      e.Cancel = true;
+      Log($"DataGridView数据错误已抑制: {e.Exception?.Message ?? "未知错误"}");
+    }
+
+    private void dataGridView_RowEnter(object sender, DataGridViewCellEventArgs e)
+    {
+      // 仅在有有效数据时允许选择，但不阻止编辑
+      if (dataGridView.Rows.Count > 0 && e.RowIndex >= 0 && e.RowIndex < dataGridView.Rows.Count)
+      {
+        // 确保单元格在选择时可以被编辑
+        dataGridView.EditMode = DataGridViewEditMode.EditOnKeystrokeOrF2;
+      }
+    }
+
+    private void dataGridView_CellBeginEdit(object sender, DataGridViewCellCancelEventArgs e)
+    {
+      // 确保编辑开始前单元格有效
+      if (e.RowIndex >= 0 && e.RowIndex < dataGridView.Rows.Count &&
+                e.ColumnIndex >= 0 && e.ColumnIndex < dataGridView.Columns.Count)
+      {
+        // 确保单元格在编辑前是可编辑的
+        if (sender is DataGridView dgv)
+        {
+          dgv.ReadOnly = false;
+          if (dgv.CurrentCell != null)
+          {
+            dgv.CurrentCell.ReadOnly = false;
+          }
+          if (e.ColumnIndex >= 0 && e.ColumnIndex < dgv.Columns.Count)
+          {
+            dgv.Columns[e.ColumnIndex].ReadOnly = false;
+          }
+          if (e.RowIndex >= 0 && e.RowIndex < dgv.Rows.Count)
+          {
+            dgv.Rows[e.RowIndex].ReadOnly = false;
+          }
+        }
+
+        // 记录开始编辑的单元格
+        if (dataGridView != null && e.ColumnIndex >= 0 && e.ColumnIndex < dataGridView.Columns.Count)
+        {
+          Log($"开始编辑单元格: 第{e.RowIndex + 1}行, {dataGridView.Columns[e.ColumnIndex].HeaderText}");
+        }
+      }
+    }
+
+    private void dataGridView_CellEndEdit(object sender, DataGridViewCellEventArgs e)
+    {
+      try
+      {
+        // 获取编辑后的值并更新数据源
+        if (dataGridView.Rows[e.RowIndex].DataBoundItem is ComplaintData data)
+        {
+          string columnName = dataGridView.Columns[e.ColumnIndex].DataPropertyName;
+          string displayColumnName = dataGridView.Columns[e.ColumnIndex].Name; // 获取显示的列名
+          object? newValue = dataGridView.Rows[e.RowIndex].Cells[e.ColumnIndex].Value;
+
+          // 获取原始值用于日志
+          object? oldValue = null;
+          System.Reflection.PropertyInfo? property = typeof(ComplaintData).GetProperty(columnName);
+          
+          // 处理特殊列的映射（这些列没有DataPropertyName但需要手动映射）
+          bool isSpecialColumn = false;
+          switch (displayColumnName)
+          {
+            case "来源": // 信访来源
+              oldValue = data.Source;
+              data.Source = newValue?.ToString();
+              Log($"已成功更新第{e.RowIndex + 1}行的信访来源字段: {oldValue} -> {newValue}");
+              isSpecialColumn = true;
+              break;
+            case "测温温度":
+              oldValue = data.Temperature;
+              data.Temperature = newValue?.ToString();
+              Log($"已成功更新第{e.RowIndex + 1}行的测温温度字段: {oldValue} -> {newValue}");
+              isSpecialColumn = true;
+              break;
+            case "处理结果":
+              oldValue = data.Result;
+              data.Result = newValue?.ToString();
+              Log($"已成功更新第{e.RowIndex + 1}行的处理结果字段: {oldValue} -> {newValue}");
+              isSpecialColumn = true;
+              break;
+            case "涉及企业":
+              oldValue = data.HeatingArea;
+              data.HeatingArea = newValue?.ToString();
+              Log($"已成功更新第{e.RowIndex + 1}行的涉及企业字段: {oldValue} -> {newValue}");
+              isSpecialColumn = true;
+              break;
+          }
+
+          // 处理普通列（有DataPropertyName的列）
+          if (!isSpecialColumn && property != null)
+          {
+            oldValue = property.GetValue(data);
+
+            // 更新对应的数据属性
+            if (!string.IsNullOrEmpty(columnName) && newValue != null)
+            {
+              if (property.CanWrite)
+              {
+                property.SetValue(data, Convert.ChangeType(newValue, property.PropertyType));
+                Log($"已成功更新第{e.RowIndex + 1}行的{columnName}字段: {oldValue} -> {newValue}");
+              }
+            }
+          }
+        }
+      }
+      catch (Exception ex)
+      {
+        Log($"单元格编辑保存失败: {ex.Message}");
+      }
+    }
+
+    private void dataGridView_SelectionChanged(object sender, EventArgs e)
+    {
+      // 确保选择单元格后可以编辑
+      if (sender is DataGridView dgv && dgv.CurrentCell != null && !dgv.ReadOnly)
+      {
+        dgv.ReadOnly = false;
+        dgv.CurrentCell.ReadOnly = false;
+      }
+    }
+
+    private void Form1_Shown(object sender, EventArgs e)
+    {
+      _ = BeginInvoke(new Action(() =>
+      {
+        // 强制刷新整个控件层次
+        SuspendLayout();
+
+        // 确保DataGridView正确显示
+        dataGridView.SuspendLayout();
+        dataGridView.ColumnHeadersHeight = 80;
+        dataGridView.ColumnHeadersVisible = true;
+        dataGridView.Padding = new Padding(0, 10, 0, 0);  // 再次确认顶部内边距
+
+        // 强制布局更新
+        dataGridView.ResumeLayout(false);
+        dataGridView.PerformLayout();
+
+        // 更新整个窗体
+        ResumeLayout(false);
+        PerformLayout();
+
+        // 强制重绘DataGridView
+        dataGridView.Invalidate();
+        dataGridView.Refresh();
+      }));
+    }
+
+    private void Form1_Resize(object sender, EventArgs e)
+    {
+      _ = BeginInvoke(new Action(() =>
+      {
+        try
+        {
+          // 确保列头始终可见
+          if (dataGridView != null && !dataGridView.IsDisposed)
+          {
+            dataGridView.ColumnHeadersVisible = true;
+            dataGridView.ColumnHeadersHeight = 80;  // 保持高列头
+            dataGridView.Padding = new Padding(0, 10, 0, 0);  // 确保列头向下偏移
+            dataGridView.Refresh();
+            dataGridView.Update();
+          }
+        }
+        catch (Exception ex)
+        {
+          Log($"Resize事件异常: {ex.Message}");
+        }
+      }));
+    }
+  }
 }

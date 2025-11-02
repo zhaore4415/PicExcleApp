@@ -68,13 +68,13 @@ namespace PicExcleApp.Services
                     worksheet.Cells[row, 1].Value = i + 1; // 序号从1开始
                     worksheet.Cells[row, 2].Value = data.CreateTime ?? string.Empty; // 信访日期
                     worksheet.Cells[row, 3].Value = data.WorkOrderNumber ?? string.Empty; // 工单号
-                    worksheet.Cells[row, 4].Value = "12345"; // 信访来源（默认为12345）
+                    worksheet.Cells[row, 4].Value = data.Source ?? string.Empty; // 信访来源
                     worksheet.Cells[row, 5].Value = data.Category ?? string.Empty; // 分类
                     worksheet.Cells[row, 6].Value = data.HeatingArea ?? "正德"; // 涉及企业（默认为正德）
                     worksheet.Cells[row, 7].Value = data.Content ?? string.Empty; // 投诉内容
                     worksheet.Cells[row, 8].Value = data.Phone ?? string.Empty; // 联系电话
-                    worksheet.Cells[row, 9].Value = string.Empty; // 测温温度（留空）
-                    worksheet.Cells[row, 10].Value = string.Empty; // 处理结果（留空）
+                    worksheet.Cells[row, 9].Value = data.Temperature ?? string.Empty; // 测温温度
+                    worksheet.Cells[row, 10].Value = data.Result ?? string.Empty; // 处理结果
                     
                     // 为数据行添加边框
                     using (var range = worksheet.Cells[row, 1, row, 10])

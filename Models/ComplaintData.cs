@@ -56,5 +56,20 @@ namespace PicExcleApp.Models
         /// 错误信息
         /// </summary>
         public string? ErrorMessage { get; set; }
+        
+        /// <summary>
+        /// 信访来源
+        /// </summary>
+        public string? Source { get; set; }
+        
+        /// <summary>
+        /// 测温温度
+        /// </summary>
+        public string? Temperature { get; set; }
+        
+        /// <summary>
+        /// 处理结果
+        /// </summary>
+        public string? Result { get; set; }
     }
 }
