@@ -132,46 +132,49 @@ namespace PicExcleApp.Services
             // 预处理文本，移除多余空格但保留可能是日期一部分的空格
             var preprocessedText = text;
             
-            // 尝试提取包含时间的标准日期格式
-            var match = Regex.Match(preprocessedText, @"(\d{4}[-/]\d{1,2}[-/]\d{1,2}\s*\d{1,2}:\d{2})");
+            // 1. 优先处理用户指定的特殊格式：在"提交"关键词之前查找的日期格式
+            // 匹配模式：任何字符序列，后跟日期格式(可能包含特殊字符)，然后是与"提交"相关的关键词
+            var match = Regex.Match(preprocessedText, @"(\d{4})[¢年H]\s*(\d{1,2})[H月M]\s*(\d{1,2})[H日D]\s+(\d{1,2})[：:](\d{2})\s+[提提交]", RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                return $"{match.Groups[1].Value}-{match.Groups[2].Value.PadLeft(2, '0')}-{match.Groups[3].Value.PadLeft(2, '0')} {match.Groups[4].Value.PadLeft(2, '0')}:{match.Groups[5].Value}";
+            }
+            
+            // 2. 直接匹配用户提供的特殊信访日期格式：2025¢10H26H 13:38
+            match = Regex.Match(preprocessedText, @"(\d{4})[¢年]\s*(\d{1,2})[H月]\s*(\d{1,2})[H日]\s+(\d{1,2}):(\d{2})");
+            if (match.Success)
+            {
+                return $"{match.Groups[1].Value}-{match.Groups[2].Value.PadLeft(2, '0')}-{match.Groups[3].Value.PadLeft(2, '0')} {match.Groups[4].Value.PadLeft(2, '0')}:{match.Groups[5].Value}";
+            }
+            
+            // 3. 针对OCR识别错误的特殊格式优化，处理字符间可能存在的乱码或错误字符
+            match = Regex.Match(preprocessedText, @"(\d{4})[¢¤]\s*(\d{1,2})[Hh]\s*(\d{1,2})[Hh]\s+(\d{1,2})[：:](\d{2})");
+            if (match.Success)
+            {
+                return $"{match.Groups[1].Value}-{match.Groups[2].Value.PadLeft(2, '0')}-{match.Groups[3].Value.PadLeft(2, '0')} {match.Groups[4].Value.PadLeft(2, '0')}:{match.Groups[5].Value}";
+            }
+            
+            // 4. 检查是否包含"提交"关键词附近的日期（日期在提交后）
+            match = Regex.Match(preprocessedText, @"[提提交]\s*[交]?\s*[于在]?\s*(\d{4})[¢年H]\s*(\d{1,2})[H月M]\s*(\d{1,2})[H日]\s*(\d{1,2})[：:](\d{2})", RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                return $"{match.Groups[1].Value}-{match.Groups[2].Value.PadLeft(2, '0')}-{match.Groups[3].Value.PadLeft(2, '0')} {match.Groups[4].Value.PadLeft(2, '0')}:{match.Groups[5].Value}";
+            }
+            
+            // 5. 检查是否包含"于"关键词后的日期
+            match = Regex.Match(preprocessedText, @"[于在]\s*(\d{4})[¢年H]\s*(\d{1,2})[H月M]\s*(\d{1,2})[H日]\s*(\d{1,2})[：:](\d{2})", RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                return $"{match.Groups[1].Value}-{match.Groups[2].Value.PadLeft(2, '0')}-{match.Groups[3].Value.PadLeft(2, '0')} {match.Groups[4].Value.PadLeft(2, '0')}:{match.Groups[5].Value}";
+            }
+            
+            // 6. 尝试提取包含时间的标准日期格式
+            match = Regex.Match(preprocessedText, @"(\d{4}[-/]\d{1,2}[-/]\d{1,2}\s*\d{1,2}:\d{2})");
             if (match.Success)
                 return match.Groups[1].Value;
             
-            // 尝试提取带年月日的中文日期格式
+            // 7. 尝试提取带年月日的中文日期格式
             match = Regex.Match(preprocessedText, @"(\d{4}年\d{1,2}月\d{1,2}日)");
-            if (match.Success)
-                return match.Groups[1].Value;
-            
-            // 特别处理用户提供的特殊信访日期格式：2025¢10H26H 13:38
-            match = Regex.Match(preprocessedText, @"(\d{4})[¢年]\s*(\d{1,2})[H月]\s*(\d{1,2})[H日]\s*(\d{1,2}):(\d{2})");
-            if (match.Success)
-            {
-                return $"{match.Groups[1].Value}-{match.Groups[2].Value.PadLeft(2, '0')}-{match.Groups[3].Value.PadLeft(2, '0')} {match.Groups[4].Value.PadLeft(2, '0')}:{match.Groups[5].Value}";
-            }
-            
-            // 尝试提取带年月日时分的完整中文日期格式（重点匹配信访日期）
-            match = Regex.Match(preprocessedText, @"(\d{4})\s*[年|H]\s*(\d{1,2})\s*[月|M]\s*(\d{1,2})\s*[日|H]\s*(\d{1,2})[：:;](\d{2})");
-            if (match.Success)
-            {
-                return $"{match.Groups[1].Value}-{match.Groups[2].Value.PadLeft(2, '0')}-{match.Groups[3].Value.PadLeft(2, '0')} {match.Groups[4].Value.PadLeft(2, '0')}:{match.Groups[5].Value}";
-            }
-            
-            // 尝试处理OCR识别可能出错的日期格式，特别是带空格分隔的日期
-            match = Regex.Match(preprocessedText, @"(\d{4})\s*[\sH¢年-/]\s*(\d{1,2})\s*[\sM月-/]\s*(\d{1,2})\s*[\sH日-/]\s*(\d{1,2})\s*[：:;]\s*(\d{2})");
-            if (match.Success)
-            {
-                return $"{match.Groups[1].Value}-{match.Groups[2].Value.PadLeft(2, '0')}-{match.Groups[3].Value.PadLeft(2, '0')} {match.Groups[4].Value.PadLeft(2, '0')}:{match.Groups[5].Value}";
-            }
-            
-            // 检查是否包含"提交"关键词附近的日期
-            match = Regex.Match(preprocessedText, @"([提提交]\s*[交]?)\s*[：:;]?\s*(\d{4})[¢年H]\s*(\d{1,2})[H月M]\s*(\d{1,2})[H日]\s*(\d{1,2})[：:](\d{2})", RegexOptions.IgnoreCase);
-            if (match.Success)
-            {
-                return $"{match.Groups[2].Value}-{match.Groups[3].Value.PadLeft(2, '0')}-{match.Groups[4].Value.PadLeft(2, '0')} {match.Groups[5].Value.PadLeft(2, '0')}:{match.Groups[6].Value}";
-            }
-            
-            // 尝试匹配其他常见日期格式
-            match = Regex.Match(text, @"(\d{2}[-/]\d{1,2}[-/]\d{1,2})");
             if (match.Success)
                 return match.Groups[1].Value;
             
