@@ -124,7 +124,7 @@ namespace PicExcleApp.Services
             if (match.Success)
                 return match.Value;
             
-            return "";
+            return "****"; // 当电话为空时显示****
         }
         
         private string ExtractDate(string text)
@@ -193,8 +193,10 @@ namespace PicExcleApp.Services
             if (!string.IsNullOrEmpty(ExtractName(text)))
                 content = Regex.Replace(content, $@"姓名[：:]?\s*{ExtractName(text)}", "", RegexOptions.IgnoreCase);
             
-            if (!string.IsNullOrEmpty(ExtractPhone(text)))
-                content = Regex.Replace(content, $@"电话[：:]?\s*{ExtractPhone(text)}", "", RegexOptions.IgnoreCase);
+            // 只在电话号码确实存在（不是空字符串且不是"****"）时才移除
+            var phoneNumber = ExtractPhone(text);
+            if (!string.IsNullOrEmpty(phoneNumber) && phoneNumber != "****")
+                content = Regex.Replace(content, $@"电话[：:]?\s*{phoneNumber}", "", RegexOptions.IgnoreCase);
             
             return content.Trim();
         }
