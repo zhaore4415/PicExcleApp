@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Data;
+using System.Windows.Forms;
 using PicExcleApp.Models;
 using PicExcleApp.Services;
 
@@ -37,6 +38,18 @@ namespace PicExcleApp
 
       // 设置数据绑定
       SetDataBinding();
+      
+      // 配置imageListBox支持拖拽排序和删除
+      if (imageListBox != null)
+      {
+        imageListBox.AllowDrop = true;
+        imageListBox.MouseDown += ImageListBox_MouseDown;
+        imageListBox.DragEnter += ImageListBox_DragEnter;
+        imageListBox.DragOver += ImageListBox_DragOver;
+        imageListBox.DragDrop += ImageListBox_DragDrop;
+        imageListBox.KeyDown += ImageListBox_KeyDown;
+        imageListBox.MouseClick += ImageListBox_MouseClick;
+      }
     }
 
     private void SetDataBinding()
@@ -156,6 +169,118 @@ namespace PicExcleApp
       if (addedCount > 0)
       {
         Log($"已添加 {addedCount} 张图片");
+      }
+    }
+    
+    // 拖拽排序相关事件和变量
+    private int _dragIndex = -1;
+    
+    private void ImageListBox_MouseDown(object? sender, MouseEventArgs e)
+    {
+      if (e.Button == MouseButtons.Left && imageListBox != null && imageListBox.SelectedIndex != -1)
+      {
+        _dragIndex = imageListBox.SelectedIndex;
+        imageListBox.DoDragDrop(imageListBox.SelectedItem, DragDropEffects.Move);
+      }
+    }
+    
+    private void ImageListBox_DragEnter(object? sender, DragEventArgs e)
+    {
+      if (e.Data?.GetDataPresent(DataFormats.StringFormat) ?? false)
+      {
+        e.Effect = DragDropEffects.Move;
+      }
+    }
+    
+    private void ImageListBox_DragOver(object? sender, DragEventArgs e)
+    {
+      e.Effect = DragDropEffects.Move;
+    }
+    
+    private void ImageListBox_DragDrop(object? sender, DragEventArgs e)
+    {
+      if (imageListBox == null || imageListBox.IsDisposed)
+        return;
+        
+      int targetIndex = imageListBox.IndexFromPoint(imageListBox.PointToClient(new Point(e.X, e.Y)));
+      
+      if (_dragIndex != -1 && targetIndex != -1 && _dragIndex != targetIndex)
+      {
+        try
+        {
+          // 获取要移动的项
+          object draggedItem = imageListBox.Items[_dragIndex];
+          
+          // 移除并插入到新位置
+          imageListBox.Items.RemoveAt(_dragIndex);
+          
+          // 调整插入位置（如果目标位置在拖拽项之后）
+          if (targetIndex > _dragIndex)
+          {
+            targetIndex--;
+          }
+          
+          imageListBox.Items.Insert(targetIndex, draggedItem);
+          
+          // 选中移动后的项
+          imageListBox.SelectedIndex = targetIndex;
+          
+          Log("图片顺序已调整");
+        }
+        catch (Exception ex)
+        {
+          Log($"调整图片顺序时出错: {ex.Message}");
+        }
+      }
+      
+      _dragIndex = -1;
+    }
+    
+    // 删除图片功能
+    private void ImageListBox_KeyDown(object? sender, KeyEventArgs e)
+    {
+      if (e.KeyCode == Keys.Delete && imageListBox != null && imageListBox.SelectedIndex != -1)
+      {
+        DeleteSelectedImages();
+      }
+    }
+    
+    private void ImageListBox_MouseClick(object? sender, MouseEventArgs e)
+    {
+      // 右键点击显示删除菜单
+      if (e.Button == MouseButtons.Right && imageListBox != null && imageListBox.SelectedIndex != -1)
+      {
+        ContextMenuStrip contextMenuStrip = new ContextMenuStrip();
+        ToolStripMenuItem deleteItem = new ToolStripMenuItem("删除选中图片");
+        deleteItem.Click += (s, ev) => DeleteSelectedImages();
+        contextMenuStrip.Items.Add(deleteItem);
+        
+        contextMenuStrip.Show(imageListBox, e.Location);
+      }
+    }
+    
+    private void DeleteSelectedImages()
+    {
+      if (imageListBox == null || imageListBox.IsDisposed || imageListBox.SelectedIndices.Count == 0)
+        return;
+        
+      try
+      {
+        // 从后往前删除，避免索引变化问题
+        List<int> selectedIndices = new(imageListBox.SelectedIndices.Cast<int>());
+        selectedIndices.Sort((a, b) => b.CompareTo(a));
+        
+        int deleteCount = selectedIndices.Count;
+        foreach (int index in selectedIndices)
+        {
+          imageListBox.Items.RemoveAt(index);
+        }
+        
+        Log($"已删除 {deleteCount} 张图片");
+      }
+      catch (Exception ex)
+      {
+        Log($"删除图片时出错: {ex.Message}");
       }
     }
 
