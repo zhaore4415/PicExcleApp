@@ -75,14 +75,24 @@ namespace PicExcleApp.Services
         
         private string ExtractWorkOrderNumber(string text)
         {
+            // 查找以DH开头的工单号（用户明确指出工单号格式为DH开头）
+            var match = Regex.Match(text, @"DH\d{16}", RegexOptions.IgnoreCase);
+            if (match.Success)
+                return match.Value;
+            
             // 工单号可能包含数字和字母
-            var match = Regex.Match(text, @"工单[号:：]\s*([A-Za-z0-9]+)", RegexOptions.IgnoreCase);
+            match = Regex.Match(text, @"工单编[号:：]\s*([A-Za-z0-9]+)", RegexOptions.IgnoreCase);
             if (match.Success)
                 return match.Groups[1].Value;
             
-            // 尝试直接匹配数字序列
-            match = Regex.Match(text, @"\b\d{6,12}\b");
-            if (match.Success)
+            // 尝试通过关键词匹配，忽略字符间的空格
+            match = Regex.Match(text, @"工\s*单\s*(编号|号|瘘|史)?\s*[：:}\s]*(DH\d{16})", RegexOptions.IgnoreCase);
+            if (match.Success && !string.IsNullOrEmpty(match.Groups[2].Value))
+                return match.Groups[2].Value;
+            
+            // 尝试匹配较长的数字序列
+            match = Regex.Match(text, @"\b[A-Za-z]?\d{8,20}\b", RegexOptions.IgnoreCase);
+            if (match.Success && match.Value.Length >= 8)
                 return match.Value;
             
             return "";
@@ -119,15 +129,46 @@ namespace PicExcleApp.Services
         
         private string ExtractDate(string text)
         {
-            // 提取日期格式：2025-10-13 12:38 或 2025/10/13 12:38 或 2025年10月13日
-            var match = Regex.Match(text, @"(\d{4}[-/]\d{1,2}[-/]\d{1,2}\s*\d{1,2}:\d{2})");
+            // 预处理文本，移除多余空格但保留可能是日期一部分的空格
+            var preprocessedText = text;
+            
+            // 尝试提取包含时间的标准日期格式
+            var match = Regex.Match(preprocessedText, @"(\d{4}[-/]\d{1,2}[-/]\d{1,2}\s*\d{1,2}:\d{2})");
             if (match.Success)
                 return match.Groups[1].Value;
             
-            // 尝试匹配单独的日期格式
-            match = Regex.Match(text, @"(\d{4}年\d{1,2}月\d{1,2}日)");
+            // 尝试提取带年月日的中文日期格式
+            match = Regex.Match(preprocessedText, @"(\d{4}年\d{1,2}月\d{1,2}日)");
             if (match.Success)
                 return match.Groups[1].Value;
+            
+            // 特别处理用户提供的特殊信访日期格式：2025¢10H26H 13:38
+            match = Regex.Match(preprocessedText, @"(\d{4})[¢年]\s*(\d{1,2})[H月]\s*(\d{1,2})[H日]\s*(\d{1,2}):(\d{2})");
+            if (match.Success)
+            {
+                return $"{match.Groups[1].Value}-{match.Groups[2].Value.PadLeft(2, '0')}-{match.Groups[3].Value.PadLeft(2, '0')} {match.Groups[4].Value.PadLeft(2, '0')}:{match.Groups[5].Value}";
+            }
+            
+            // 尝试提取带年月日时分的完整中文日期格式（重点匹配信访日期）
+            match = Regex.Match(preprocessedText, @"(\d{4})\s*[年|H]\s*(\d{1,2})\s*[月|M]\s*(\d{1,2})\s*[日|H]\s*(\d{1,2})[：:;](\d{2})");
+            if (match.Success)
+            {
+                return $"{match.Groups[1].Value}-{match.Groups[2].Value.PadLeft(2, '0')}-{match.Groups[3].Value.PadLeft(2, '0')} {match.Groups[4].Value.PadLeft(2, '0')}:{match.Groups[5].Value}";
+            }
+            
+            // 尝试处理OCR识别可能出错的日期格式，特别是带空格分隔的日期
+            match = Regex.Match(preprocessedText, @"(\d{4})\s*[\sH¢年-/]\s*(\d{1,2})\s*[\sM月-/]\s*(\d{1,2})\s*[\sH日-/]\s*(\d{1,2})\s*[：:;]\s*(\d{2})");
+            if (match.Success)
+            {
+                return $"{match.Groups[1].Value}-{match.Groups[2].Value.PadLeft(2, '0')}-{match.Groups[3].Value.PadLeft(2, '0')} {match.Groups[4].Value.PadLeft(2, '0')}:{match.Groups[5].Value}";
+            }
+            
+            // 检查是否包含"提交"关键词附近的日期
+            match = Regex.Match(preprocessedText, @"([提提交]\s*[交]?)\s*[：:;]?\s*(\d{4})[¢年H]\s*(\d{1,2})[H月M]\s*(\d{1,2})[H日]\s*(\d{1,2})[：:](\d{2})", RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                return $"{match.Groups[2].Value}-{match.Groups[3].Value.PadLeft(2, '0')}-{match.Groups[4].Value.PadLeft(2, '0')} {match.Groups[5].Value.PadLeft(2, '0')}:{match.Groups[6].Value}";
+            }
             
             // 尝试匹配其他常见日期格式
             match = Regex.Match(text, @"(\d{2}[-/]\d{1,2}[-/]\d{1,2})");

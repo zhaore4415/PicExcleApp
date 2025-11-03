@@ -24,13 +24,18 @@ namespace PicExcleApp.Services
                 // 调整方向
                 image.Mutate(x => x.AutoOrient());
                 
-                // 增强对比度
-                image.Mutate(x => x.Contrast(0.1f));
+                // 显著增强对比度，帮助识别小文字
+                image.Mutate(x => x.Contrast(0.3f));
                 
-                // 转换为灰度图以提高OCR准确性
-                image.Mutate(x => x.Grayscale());
+                // 锐化处理，提高文字清晰度，特别是小文字
+                image.Mutate(x => x.Saturate(0.5f));
                 
-                // 保存到内存流
+                // 提高亮度，有助于OCR识别
+                image.Mutate(x => x.Brightness(1.1f));
+                
+                // 先尝试彩色模式识别，这样可以保留更多文字细节，特别是对小文字
+                // 对于Tesseract OCR，彩色图像有时比灰度图像识别效果更好
+               // 保存到内存流
                 var stream = new MemoryStream();
                 image.Save(stream, new PngEncoder());
                 stream.Position = 0;

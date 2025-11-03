@@ -1,11 +1,19 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
-    <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UseWindowsForms>true</UseWindowsForms>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <!-- 启用单文件发布 -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <!-- 启用压缩 -->
+    <PublishReadyToRunCompress>true</PublishReadyToRunCompress>
+    <!-- 添加平台兼容性信息 -->
+    <SupportedOSPlatformVersion>6.1</SupportedOSPlatformVersion>
+    <AnalysisLevel>none</AnalysisLevel>
   </PropertyGroup>
 
   <ItemGroup>

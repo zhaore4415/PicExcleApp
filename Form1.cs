@@ -672,25 +672,29 @@ namespace PicExcleApp
 
     private void Form1_Resize(object sender, EventArgs e)
     {
-      _ = BeginInvoke(new Action(() =>
+      // 确保窗口句柄已经创建
+      if (IsHandleCreated)
       {
-        try
+        _ = BeginInvoke(new Action(() =>
         {
-          // 确保列头始终可见
-          if (dataGridView != null && !dataGridView.IsDisposed)
+          try
           {
-            dataGridView.ColumnHeadersVisible = true;
-            dataGridView.ColumnHeadersHeight = 80;  // 保持高列头
-            dataGridView.Padding = new Padding(0, 10, 0, 0);  // 确保列头向下偏移
-            dataGridView.Refresh();
-            dataGridView.Update();
+            // 确保列头始终可见
+            if (dataGridView != null && !dataGridView.IsDisposed)
+            {
+              dataGridView.ColumnHeadersVisible = true;
+              dataGridView.ColumnHeadersHeight = 80;  // 保持高列头
+              dataGridView.Padding = new Padding(0, 10, 0, 0);  // 确保列头向下偏移
+              dataGridView.Refresh();
+              dataGridView.Update();
+            }
           }
-        }
-        catch (Exception ex)
-        {
-          Log($"Resize事件异常: {ex.Message}");
-        }
-      }));
+          catch (Exception ex)
+          {
+            Log($"Resize事件异常: {ex.Message}");
+          }
+        }));
+      }
     }
   }
 }
