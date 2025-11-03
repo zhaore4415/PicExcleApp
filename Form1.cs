@@ -75,28 +75,109 @@ namespace PicExcleApp
 
     private void SetDataBinding()
     {
+      // 检查必要组件是否存在
+      if (_bindingList == null || dataGridView == null)
+        return;
+
+      // 清除所有现有列
+      dataGridView.Columns.Clear();
+
+      // 设置AutoGenerateColumns为false，防止自动生成不需要的列
+      dataGridView.AutoGenerateColumns = false;
+
       // 使用BindingSource作为中间层，提高数据绑定的稳定性和可编辑性
       BindingSource bindingSource = new()
       {
         DataSource = _bindingList
       };
 
-      // 先设置数据源，添加null检查
-      if (dataGridView != null)
-      {
-        dataGridView.DataSource = bindingSource;
+      // 设置数据源
+      dataGridView.DataSource = bindingSource;
 
-        // 确保序号列在绑定时正确初始化
-        if (dataGridView.Columns != null && dataGridView.Columns.Contains("序号"))
+      // 设置列标题和格式为用户期望的样式
+      UpdateColumnHeadersToChinese();
+    }
+
+    /// <summary>
+    /// 设置DataGridView的列标题和格式为用户期望的样式
+    /// </summary>
+    private void UpdateColumnHeadersToChinese()
+    {
+      if (dataGridView == null || dataGridView.Columns == null)
+        return;
+
+      // 首先清除所有现有列
+      dataGridView.Columns.Clear();
+
+      // 确保只保留用户当前显示的列
+      // 定义列名映射（中文列名 -> 英文属性名）
+      Dictionary<string, string> headerToPropertyMap = new()
+      {
+        { "信访日期", "CreateTime" },
+        { "工单号", "WorkOrderNumber" },
+        { "信访来源", "Source" },
+        { "分类", "Category" },
+        { "涉及企业", "HeatingArea" },
+        { "投诉内容", "Content" },
+        { "联系电话", "Phone" },
+        { "测温温度", "Temperature" },
+        { "处理结果", "Result" }
+      };
+
+      // 重新创建并添加所需的列，按照用户期望的顺序（只保留当前显示的列）
+      List<string> columnOrder = new() { "序号", "信访日期", "工单号", "信访来源", "分类", "涉及企业", "投诉内容", "联系电话", "测温温度", "处理结果" };
+      
+      // 创建序号列
+      DataGridViewTextBoxColumn serialColumn = new()
+      {
+        Name = "序号",
+        HeaderText = "序号",
+        DataPropertyName = string.Empty,
+        ReadOnly = true,
+        Width = 50
+      };
+      dataGridView.Columns.Add(serialColumn);
+      
+      // 为每个需要的列创建并设置属性
+      foreach (string headerText in columnOrder.Skip(1)) // 跳过序号列
+      {
+        if (headerToPropertyMap.TryGetValue(headerText, out string propertyName))
         {
-          DataGridViewColumn serialColumn = dataGridView.Columns["序号"];
-          if (serialColumn != null)
+          DataGridViewTextBoxColumn column = new()
           {
-            serialColumn.DataPropertyName = string.Empty; // 确保不绑定到任何属性
-            serialColumn.ReadOnly = true; // 设置为只读
+            Name = headerText,
+            HeaderText = headerText,
+            DataPropertyName = propertyName,
+            ReadOnly = false
+          };
+          
+          // 设置部分列的宽度
+          switch (headerText)
+          {
+            case "序号":
+              column.Width = 50;
+              break;
+            case "信访日期":
+              column.Width = 120;
+              break;
+            case "工单号":
+              column.Width = 100;
+              break;
+            case "投诉内容":
+            case "处理结果":
+              column.Width = 150;
+              column.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+              break;
           }
+          
+          dataGridView.Columns.Add(column);
         }
       }
+      
+      // 设置行高以适应内容
+      dataGridView.RowTemplate.Height = 60;
+      // 确保列标题高度足够
+      dataGridView.ColumnHeadersHeight = 80;
     }
 
     private void Log(string message)
@@ -555,6 +636,9 @@ namespace PicExcleApp
 
         // 刷新BindingList以更新数据
         _bindingList?.ResetBindings();
+        
+        // 确保列标题保持中文
+        UpdateColumnHeadersToChinese();
 
         // 确保所有编辑相关设置正确
         dataGridView.Enabled = true;
