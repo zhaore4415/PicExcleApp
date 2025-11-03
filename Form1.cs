@@ -106,10 +106,13 @@ namespace PicExcleApp
       if (dataGridView == null || dataGridView.Columns == null)
         return;
 
+      // 确保AutoGenerateColumns为false，防止自动生成不需要的列
+      dataGridView.AutoGenerateColumns = false;
+
       // 首先清除所有现有列
       dataGridView.Columns.Clear();
 
-      // 确保只保留用户当前显示的列
+      // 确保只保留用户当前显示的列，不包含OriginalImagePath、Status和ErrorMessage列
       // 定义列名映射（中文列名 -> 英文属性名）
       Dictionary<string, string> headerToPropertyMap = new()
       {
@@ -151,7 +154,7 @@ namespace PicExcleApp
             ReadOnly = false
           };
           
-          // 设置部分列的宽度
+          // 设置列宽度
           switch (headerText)
           {
             case "序号":
@@ -168,15 +171,18 @@ namespace PicExcleApp
               column.Width = 150;
               column.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
               break;
+            default:
+              column.Width = 100;
+              break;
           }
           
           dataGridView.Columns.Add(column);
         }
       }
       
-      // 设置行高以适应内容
+      // 设置行高和列标题高度
       dataGridView.RowTemplate.Height = 60;
-      // 确保列标题高度足够
+      dataGridView.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.EnableResizing;
       dataGridView.ColumnHeadersHeight = 80;
     }
 
