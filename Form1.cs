@@ -50,6 +50,27 @@ namespace PicExcleApp
         imageListBox.KeyDown += ImageListBox_KeyDown;
         imageListBox.MouseClick += ImageListBox_MouseClick;
       }
+      
+      // 添加全局快捷键支持
+      this.KeyPreview = true; // 允许表单接收键盘事件
+      this.KeyDown += Form1_KeyDown; // 绑定键盘事件
+    }
+    
+    // 全局键盘事件处理
+    private void Form1_KeyDown(object? sender, KeyEventArgs e)
+    {
+      // Ctrl+Shift+C 快捷键清除所有图片
+      if (e.Control && e.Shift && e.KeyCode == Keys.C)
+      {
+        e.Handled = true;
+        e.SuppressKeyPress = true;
+        
+        // 确认对话框
+        if (MessageBox.Show("确定要清除所有图片吗？", "确认", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+        {
+          ClearAllImages();
+        }
+      }
     }
 
     private void SetDataBinding()
@@ -140,6 +161,56 @@ namespace PicExcleApp
         AddImagesToProcess(openFileDialog.FileNames);
       }
     }
+    
+    // 清除所有图片按钮事件处理
+    private void ClearImagesButton_Click(object? sender, EventArgs e)
+    {
+      // 确认对话框
+      if (MessageBox.Show("确定要清除所有图片吗？", "确认", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+      {
+        ClearAllImages();
+      }
+    }
+    
+    // 添加清除所有图片的方法
+    private void ClearAllImages()
+    {
+      try
+      {
+        if (imageListBox != null && !imageListBox.IsDisposed)
+        {
+          int count = imageListBox.Items.Count;
+          if (count > 0)
+          {
+            imageListBox.Items.Clear();
+            Log($"已清除所有 {count} 张图片");
+            
+            // 同时清除处理数据
+            if (_processingDataList != null)
+            {
+              _processingDataList.Clear();
+              if (_bindingList != null)
+              {
+                _bindingList.ResetBindings();
+                UpdateDataGridView();
+              }
+            }
+          }
+          else
+          {
+            Log("没有图片需要清除");
+          }
+        }
+      }
+      catch (Exception ex)
+      {
+        Log($"清除图片时出错: {ex.Message}");
+        MessageBox.Show($"清除图片失败: {ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+      }
+    }
+    
+    // 为了方便测试，在Form1构造函数中添加一个清除所有图片的快捷键
+    // 可以通过按 Ctrl+Shift+C 来快速清除所有图片
 
     private void AddImagesToProcess(string[]? files)
     {
@@ -248,14 +319,40 @@ namespace PicExcleApp
     private void ImageListBox_MouseClick(object? sender, MouseEventArgs e)
     {
       // 右键点击显示删除菜单
-      if (e.Button == MouseButtons.Right && imageListBox != null && imageListBox.SelectedIndex != -1)
+      if (e.Button == MouseButtons.Right && imageListBox != null)
       {
-        ContextMenuStrip contextMenuStrip = new ContextMenuStrip();
-        ToolStripMenuItem deleteItem = new ToolStripMenuItem("删除选中图片");
-        deleteItem.Click += (s, ev) => DeleteSelectedImages();
-        contextMenuStrip.Items.Add(deleteItem);
-        
-        contextMenuStrip.Show(imageListBox, e.Location);
+        try
+        {
+          // 无论是否有选中项，都显示右键菜单
+          ContextMenuStrip contextMenuStrip = new ContextMenuStrip();
+          
+          // 如果有选中项，显示删除选中图片选项
+          if (imageListBox.SelectedIndex != -1)
+          {
+            ToolStripMenuItem deleteItem = new ToolStripMenuItem("删除选中图片");
+            deleteItem.Click += (s, ev) => DeleteSelectedImages();
+            contextMenuStrip.Items.Add(deleteItem);
+          }
+          
+          // 总是显示清除所有图片选项
+          ToolStripMenuItem clearAllItem = new ToolStripMenuItem("清除所有图片");
+          clearAllItem.Click += (s, ev) => 
+          {
+            // 确认对话框
+            if (MessageBox.Show("确定要清除所有图片吗？", "确认", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            {
+              ClearAllImages();
+            }
+          };
+          contextMenuStrip.Items.Add(clearAllItem);
+          
+          // 显示菜单
+          contextMenuStrip.Show(imageListBox, e.Location);
+        }
+        catch (Exception ex)
+        {
+          Log($"显示右键菜单时出错: {ex.Message}");
+        }
       }
     }
     
@@ -266,21 +363,58 @@ namespace PicExcleApp
         
       try
       {
+        // 记录要删除的图片路径
+        List<string> removedFiles = new List<string>();
+        foreach (int index in imageListBox.SelectedIndices)
+        {
+          if (index >= 0 && index < imageListBox.Items.Count)
+          {
+            removedFiles.Add(imageListBox.Items[index].ToString());
+          }
+        }
+        
         // 从后往前删除，避免索引变化问题
         List<int> selectedIndices = new(imageListBox.SelectedIndices.Cast<int>());
         selectedIndices.Sort((a, b) => b.CompareTo(a));
         
-        int deleteCount = selectedIndices.Count;
+        int deleteCount = 0;
         foreach (int index in selectedIndices)
         {
-          imageListBox.Items.RemoveAt(index);
+          if (index >= 0 && index < imageListBox.Items.Count)
+          {
+            imageListBox.Items.RemoveAt(index);
+            deleteCount++;
+          }
         }
         
-        Log($"已删除 {deleteCount} 张图片");
+        // 清除与删除图片相关的处理数据
+        if (_processingDataList != null && _processingDataList.Count > 0)
+        {
+          for (int i = _processingDataList.Count - 1; i >= 0; i--)
+          {
+            if (removedFiles.Contains(_processingDataList[i].OriginalImagePath))
+            {
+              _processingDataList.RemoveAt(i);
+            }
+          }
+          
+          // 通知BindingList更新
+          if (_bindingList != null)
+          {
+            _bindingList.ResetBindings();
+            UpdateDataGridView();
+          }
+        }
+        
+        // 显示成功消息
+        if (deleteCount > 0)
+        {
+          MessageBox.Show($"成功删除 {deleteCount} 张图片", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
       }
       catch (Exception ex)
       {
-        Log($"删除图片时出错: {ex.Message}");
+        MessageBox.Show($"删除图片失败: {ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
       }
     }
 
