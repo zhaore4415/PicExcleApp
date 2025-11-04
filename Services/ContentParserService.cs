@@ -23,6 +23,43 @@ namespace PicExcleApp.Services
         }
         
         /// <summary>
+        /// 去除汉字之间的多余空格和行与行之间的多余空行
+        /// </summary>
+        /// <param name="text">需要处理的文本</param>
+        /// <returns>处理后的文本</returns>
+        private string RemoveExtraSpaces(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return text;
+                
+            // 使用正则表达式移除汉字之间的所有空格
+            // 匹配模式：一个汉字，后跟任意数量的空格，再跟一个汉字
+            string result = text;
+            
+            // 重复应用正则替换，直到没有更多的空格被移除
+            string prevResult;
+            do
+            {
+                prevResult = result;
+                // 移除两个汉字之间的空格
+                result = Regex.Replace(result, @"([\u4e00-\u9fa5])\s+([\u4e00-\u9fa5])", "$1$2");
+            } while (prevResult != result);
+            
+            // 处理行与行之间的多余空行，包括可能包含空白字符的空行
+            result = Regex.Replace(result, @"\r?\n\s*\r?\n", "\r\n");
+            
+            // 重复处理直到没有更多的空行被移除
+            string prevResult2;
+            do
+            {
+                prevResult2 = result;
+                result = Regex.Replace(result, @"\r?\n\s*\r?\n", "\r\n");
+            } while (prevResult2 != result);
+            
+            return result;
+        }
+        
+        /// <summary>
         /// 解析OCR文本为投诉数据
         /// </summary>
         /// <param name="ocrText">OCR识别的文本</param>
@@ -30,6 +67,9 @@ namespace PicExcleApp.Services
         /// <returns>投诉数据</returns>
         public ComplaintData ParseToComplaintData(string ocrText, string imagePath)
         {
+            // 预处理OCR文本，移除汉字之间的多余空格
+            string processedText = RemoveExtraSpaces(ocrText);
+            
             var data = new ComplaintData
             {
                 OriginalImagePath = imagePath,
@@ -39,19 +79,19 @@ namespace PicExcleApp.Services
             try
             {
                 // 提取工单号
-                data.WorkOrderNumber = ExtractWorkOrderNumber(ocrText);
+                data.WorkOrderNumber = ExtractWorkOrderNumber(processedText);
                 
                 // 提取姓名
-                data.Name = ExtractName(ocrText);
+                data.Name = ExtractName(processedText);
                 
                 // 提取电话
-                data.Phone = ExtractPhone(ocrText);
+                data.Phone = ExtractPhone(processedText);
                 
                 // 提取投诉内容
-                data.Content = ExtractContent(ocrText);
+                data.Content = ExtractContent(processedText);
                 
                 // 提取来件日期
-                data.CreateTime = ExtractDate(ocrText);
+                data.CreateTime = ExtractDate(processedText);
                 
                 // 自动分类
                 data.Category = CategorizeComplaint(data.Content);
@@ -197,6 +237,9 @@ namespace PicExcleApp.Services
             var phoneNumber = ExtractPhone(text);
             if (!string.IsNullOrEmpty(phoneNumber) && phoneNumber != "****")
                 content = Regex.Replace(content, $@"电话[：:]?\s*{phoneNumber}", "", RegexOptions.IgnoreCase);
+            
+            // 移除投诉内容中汉字之间的所有空格
+            content = RemoveExtraSpaces(content);
             
             return content.Trim();
         }

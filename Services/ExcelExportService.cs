@@ -87,8 +87,21 @@ namespace PicExcleApp.Services
                     }
                 }
                 
-                // 自动调整列宽
-                worksheet.Cells.AutoFitColumns();
+                // 手动设置各列宽度
+                // 这里可以根据需要调整每列的宽度值
+                worksheet.Column(1).Width = 8;  // 序号列
+                worksheet.Column(2).Width = 15; // 信访日期列
+                worksheet.Column(3).Width = 15; // 工单号列
+                worksheet.Column(4).Width = 12; // 信访来源列
+                worksheet.Column(5).Width = 10; // 分类列
+                worksheet.Column(6).Width = 12; // 涉及企业列
+                worksheet.Column(7).Width = 40; // 投诉内容列（可以设置较宽）
+                worksheet.Column(8).Width = 15; // 联系电话列
+                worksheet.Column(9).Width = 10; // 测温温度列
+                worksheet.Column(10).Width = 20; // 处理结果列
+                
+                // 如果需要自动调整列宽而不是手动设置，可以取消上面的注释并使用下面这行
+                // worksheet.Cells.AutoFitColumns();
                 
                 // 保存文件
                 File.WriteAllBytes(filePath, package.GetAsByteArray());
