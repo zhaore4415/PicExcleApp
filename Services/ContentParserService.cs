@@ -10,6 +10,7 @@ namespace PicExcleApp.Services
     {
         private readonly OCRService _ocrService;
         private readonly KeywordConfig _keywordConfig;
+        private readonly DatabaseService _databaseService;
         
         /// <summary>
         /// 构造函数
@@ -20,6 +21,35 @@ namespace PicExcleApp.Services
         {
             _ocrService = ocrService;
             _keywordConfig = keywordConfig;
+            _databaseService = new DatabaseService();
+            
+            // 加载数据库中的小区映射到KeywordConfig中，保持与现有代码的兼容性
+            LoadCommunityMapFromDatabase();
+        }
+        
+        /// <summary>
+        /// 从数据库加载小区到供热区域的映射
+        /// </summary>
+        private void LoadCommunityMapFromDatabase()
+        {
+            try
+            {
+                var communityMap = _databaseService.GetAllCommunityToAreaMap();
+                if (communityMap.Count > 0)
+                {
+                    // 清空现有的映射并添加数据库中的映射
+                    _keywordConfig.CommunityToAreaMap.Clear();
+                    foreach (var kvp in communityMap)
+                    {
+                        _keywordConfig.CommunityToAreaMap[kvp.Key] = kvp.Value;
+                    }
+                }
+            }
+            catch (System.Exception ex)
+            {
+                // 记录错误但不中断程序运行
+                System.Console.WriteLine($"加载数据库小区映射失败: {ex.Message}");
+            }
         }
         
         /// <summary>
@@ -259,13 +289,29 @@ namespace PicExcleApp.Services
         
         private string MatchHeatingArea(string content)
         {
-            foreach (var community in _keywordConfig.CommunityToAreaMap.Keys)
+            try
             {
-                if (content.Contains(community))
+                // 优先使用数据库进行模糊匹配
+                string heatingArea = _databaseService.GetHeatingAreaByName(content);
+                if (!string.IsNullOrEmpty(heatingArea) && heatingArea != "未知")
                 {
-                    return _keywordConfig.CommunityToAreaMap[community];
+                    return heatingArea;
                 }
             }
+            catch (System.Exception ex)
+            {
+                // 数据库查询失败时，回退到使用配置文件中的映射
+                System.Console.WriteLine($"数据库查询供热区域失败: {ex.Message}");
+            }
+            
+            // 如果数据库查询失败或未找到匹配项，回退到使用配置文件中的映射
+            //foreach (var community in _keywordConfig.CommunityToAreaMap.Keys)
+            //{
+            //    if (content.Contains(community))
+            //    {
+            //        return _keywordConfig.CommunityToAreaMap[community];
+            //    }
+            //}
             
             return "未知";
         }
