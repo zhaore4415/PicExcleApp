@@ -14,6 +14,7 @@ namespace PicExcleApp
         private ContentParserService _contentParserService;
         private readonly ExcelExportService _excelExportService;
         private readonly ConfigManagerService _configManagerService;
+        private readonly DatabaseService _databaseService;
 
         // 配置和数据
         private readonly KeywordConfig _keywordConfig;
@@ -31,6 +32,15 @@ namespace PicExcleApp
             _keywordConfig = _configManagerService.LoadConfig();
             _contentParserService = new ContentParserService(_ocrService, _keywordConfig);
             _excelExportService = new ExcelExportService();
+            _databaseService = new DatabaseService();
+            try
+            {
+                Log("数据库服务初始化成功");
+            }
+            catch (Exception ex)
+            {
+                Log($"数据库服务初始化失败: {ex.Message}");
+            }
 
             // 初始化数据列表
             _processingDataList = [];
@@ -566,10 +576,10 @@ namespace PicExcleApp
                             // 添加到结果列表
                             Invoke(new Action(() =>
                               {
-                                _processingDataList.Add(complaintData);
-                                _bindingList.ResetBindings();
-                                UpdateDataGridView();
-                            }));
+                                  _processingDataList.Add(complaintData);
+                                  _bindingList.ResetBindings();
+                                  UpdateDataGridView();
+                              }));
                         }
                     }
                     catch (Exception ex)
@@ -632,6 +642,7 @@ namespace PicExcleApp
                     {
                         Log($"恢复DataGridView状态时出错: {innerEx.Message}");
                     }
+
                 }
             }
         }
@@ -941,6 +952,11 @@ namespace PicExcleApp
                     string displayColumnName = dataGridView.Columns[e.ColumnIndex].Name; // 获取显示的列名
                     object? newValue = dataGridView.Rows[e.RowIndex].Cells[e.ColumnIndex].Value;
 
+                    // 检查是否编辑了投诉内容列，如果是，则重新匹配供热区域
+                    bool isComplaintContentColumn = displayColumnName == "投诉内容" ||
+                                                   dataGridView.Columns[e.ColumnIndex].HeaderText == "投诉内容";
+                    string? originalHeatingArea = data.HeatingArea; // 保存原始供热区域值
+
                     // 获取原始值用于日志
                     object? oldValue = null;
                     System.Reflection.PropertyInfo? property = typeof(ComplaintData).GetProperty(columnName);
@@ -990,11 +1006,56 @@ namespace PicExcleApp
                             }
                         }
                     }
+
+                    // 如果编辑的是投诉内容列，重新匹配供热区域
+                    if (isComplaintContentColumn && newValue is string newComplaintContent)
+                    {
+                        UpdateHeatingAreaForComplaint(data, newComplaintContent, e.RowIndex, originalHeatingArea);
+                    }
                 }
             }
             catch (Exception ex)
             {
                 Log($"单元格编辑保存失败: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 根据投诉内容更新供热区域
+        /// </summary>
+        /// <param name="data">投诉数据对象</param>
+        /// <param name="complaintContent">投诉内容</param>
+        /// <param name="rowIndex">行索引</param>
+        /// <param name="originalHeatingArea">原始供热区域</param>
+        private void UpdateHeatingAreaForComplaint(ComplaintData data, string complaintContent, int rowIndex, string? originalHeatingArea)
+        {
+            try
+            {
+                if (_databaseService == null)
+                {
+                    Log("数据库服务未初始化，跳过供热区域匹配");
+                    return;
+                }
+
+                Log($"开始为第{rowIndex + 1}行重新匹配供热区域");
+                string? matchedHeatingArea = _databaseService.GetHeatingAreaByName(complaintContent);
+
+                if (!string.IsNullOrEmpty(matchedHeatingArea))
+                {
+                    data.HeatingArea = matchedHeatingArea;
+                    Log($"第{rowIndex + 1}行供热区域已更新: {originalHeatingArea} -> {matchedHeatingArea}");
+
+                    // 刷新DataGridView以显示更新后的值
+                    dataGridView.Refresh();
+                }
+                else
+                {
+                    Log($"第{rowIndex + 1}行未匹配到供热区域");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"重新匹配供热区域时出错: {ex.Message}");
             }
         }
 
