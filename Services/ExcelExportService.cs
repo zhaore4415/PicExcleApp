@@ -1,7 +1,10 @@
 using OfficeOpenXml;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using PicExcleApp.Models;
+using NPOI.HSSF.UserModel;
+using NPOI.SS.UserModel;
 
 namespace PicExcleApp.Services
 {
@@ -171,5 +174,371 @@ namespace PicExcleApp.Services
             
             return map;
         }
+        /// <summary>
+        /// 从data.xls文件提取企业信息
+        /// </summary>
+        /// <param name="rootDirectory">根目录路径</param>
+        /// <summary>
+        /// 导入燃气表数据
+        /// </summary>
+        /// <param name="filePath">Excel文件路径</param>
+        /// <returns>投诉数据列表</returns>
+        public List<ComplaintData> ImportGasMeterData(string filePath)
+        {
+            var dataList = new List<ComplaintData>();
+            
+            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+            
+            using (var package = new ExcelPackage(new FileInfo(filePath)))
+            {
+                var worksheet = package.Workbook.Worksheets[0];
+                int rowCount = worksheet.Dimension.Rows;
+                
+                // 从第二行开始读取数据
+                for (int row = 2; row <= rowCount; row++)
+                {
+                    var complaintData = new ComplaintData();
+                    
+                    // 尝试从不同列获取数据（根据实际Excel结构调整）
+                    complaintData.Content = worksheet.Cells[row, 1]?.Text; // 投诉内容
+                    complaintData.WorkOrderNumber = worksheet.Cells[row, 2]?.Text; // 工单号
+                    complaintData.Phone = worksheet.Cells[row, 3]?.Text; // 联系电话
+                    complaintData.HeatingArea = "";
+                    complaintData.Category = "";
+                    complaintData.Result = "";
+                    complaintData.Temperature = "";
+                    complaintData.Source = "燃气表数据";
+                    complaintData.CreateTime = DateTime.Now.ToString("yyyy-MM-dd");
+                    
+                    dataList.Add(complaintData);
+                }
+            }
+            
+            return dataList;
+        }
+        
+        /// <summary>
+        /// 从 data.xls 文件提取企业信息
+        /// </summary>
+        /// <param name="rootDirectory">根目录路径</param>
+        /// <param name="complaintContents">投诉内容列表</param>
+        /// <returns>投诉内容到企业名称的映射字典</returns>
+        public Dictionary<string, string> ExtractEnterpriseInfoFromDataFile(string rootDirectory, List<string> complaintContents)
+        {
+            var resultMap = new Dictionary<string, string>();
+            string dataFilePath = Path.Combine(rootDirectory, "data.xls");
+
+            // 检查文件是否存在
+            if (!File.Exists(dataFilePath))
+            {
+                Console.WriteLine($"文件不存在: {dataFilePath}");
+                return resultMap; // 返回空字典
+            }
+
+            Console.WriteLine($"开始处理 data.xls 文件: {dataFilePath}");
+            Console.WriteLine($"投诉内容列表数量: {complaintContents.Count}");
+
+            try
+            {
+                // 使用 FileStream 打开文件
+                using (var fileStream = new FileStream(dataFilePath, FileMode.Open, FileAccess.Read))
+                {
+                    // 创建 HSSFWorkbook 对象来处理.xls 文件
+                    HSSFWorkbook workbook = new HSSFWorkbook(fileStream);
+
+                    Console.WriteLine($"成功打开 Excel 文件，工作表数量: {workbook.NumberOfSheets}");
+
+                    // 第一阶段：遍历所有工作表的B列进行匹配
+                    Console.WriteLine("===== 第一阶段：遍历所有工作表的B列进行匹配 =====");
+                    foreach (var content in complaintContents)
+                    {
+                        if (resultMap.ContainsKey(content))
+                            continue;
+
+                        for (int sheetIndex = 0; sheetIndex < workbook.NumberOfSheets; sheetIndex++)
+                        {
+                            ISheet worksheet = workbook.GetSheetAt(sheetIndex);
+                            if (worksheet.LastRowNum < 0) continue;
+
+                            // 提取企业名称
+                            string enterpriseName = ExtractEnterpriseNameFromNPOI(worksheet);
+                            if (string.IsNullOrEmpty(enterpriseName))
+                                enterpriseName = worksheet.SheetName;
+
+                            // 收集并匹配B列关键词
+                            List<string> columnBKeywords = new List<string>();
+                            for (int row = 2; row <= Math.Min(worksheet.LastRowNum, 99); row++)
+                            {
+                                IRow currentRow = worksheet.GetRow(row);
+                                if (currentRow != null)
+                                {
+                                    ICell bCell = currentRow.GetCell(1);
+                                    string bCellValue = GetCellValue(bCell)?.Trim();
+                                    if (!string.IsNullOrEmpty(bCellValue) && !bCellValue.Equals("小区名称", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        columnBKeywords.Add(bCellValue);
+                                    }
+                                }
+                            }
+
+                            // 尝试严格匹配
+                            bool matched = MatchKeywords(content, columnBKeywords, enterpriseName, resultMap, $"工作表 '{worksheet.SheetName}' 的B列");
+                            if (matched)
+                                break;
+
+                            // 尝试模糊匹配
+                            matched = FuzzyMatchKeywords(content, columnBKeywords, enterpriseName, resultMap, $"工作表 '{worksheet.SheetName}' 的B列");
+                            if (matched)
+                                break;
+                        }
+                    }
+
+                    // 统计第一阶段匹配结果
+                    Console.WriteLine($"第一阶段（B列匹配）完成，已匹配: {resultMap.Count} 条记录");
+
+                    // 第二阶段：对未匹配的内容，遍历所有工作表的C列进行匹配
+                    Console.WriteLine("===== 第二阶段：遍历所有工作表的C列进行匹配 =====");
+                    foreach (var content in complaintContents)
+                    {
+                        if (resultMap.ContainsKey(content))
+                            continue;
+
+                        for (int sheetIndex = 0; sheetIndex < workbook.NumberOfSheets; sheetIndex++)
+                        {
+                            ISheet worksheet = workbook.GetSheetAt(sheetIndex);
+                            if (worksheet.LastRowNum < 0) continue;
+
+                            // 提取企业名称
+                            string enterpriseName = ExtractEnterpriseNameFromNPOI(worksheet);
+                            if (string.IsNullOrEmpty(enterpriseName))
+                                enterpriseName = worksheet.SheetName;
+
+                            // 收集并匹配C列关键词
+                            List<string> columnCKeywords = new List<string>();
+                            for (int row = 2; row <= Math.Min(worksheet.LastRowNum, 99); row++)
+                            {
+                                IRow currentRow = worksheet.GetRow(row);
+                                if (currentRow != null)
+                                {
+                                    ICell cCell = currentRow.GetCell(2);
+                                    string cCellValue = GetCellValue(cCell)?.Trim();
+                                    if (!string.IsNullOrEmpty(cCellValue) && !cCellValue.Equals("楼房名称", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        columnCKeywords.Add(cCellValue);
+                                    }
+                                }
+                            }
+
+                            // 尝试严格匹配
+                            bool matched = MatchKeywords(content, columnCKeywords, enterpriseName, resultMap, $"工作表 '{worksheet.SheetName}' 的C列");
+                            if (matched)
+                                break;
+
+                            // 尝试模糊匹配
+                            matched = FuzzyMatchKeywords(content, columnCKeywords, enterpriseName, resultMap, $"工作表 '{worksheet.SheetName}' 的C列");
+                            if (matched)
+                                break;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"读取 data.xls 文件时出错: {ex.Message}");
+                Console.WriteLine($"错误类型: {ex.GetType().Name}");
+                Console.WriteLine($"错误详情: {ex.StackTrace}");
+            }
+
+            Console.WriteLine($"企业信息提取完成，总共匹配到 {resultMap.Count} 条记录");
+            return resultMap;
+        }
+        
+        /// <summary>
+        /// 匹配关键词 - 使用更严格的匹配逻辑
+        /// </summary>
+        private bool MatchKeywords(string content, List<string> keywords, string enterpriseName, Dictionary<string, string> resultMap, string columnName)
+        {
+            foreach (var keyword in keywords)
+            {
+                if (!string.IsNullOrEmpty(keyword) && keyword.Length > 1) // 至少2个字符才匹配
+                {
+                    // 使用更精确的匹配，确保关键词是完整的小区名称等
+                    if (content.Contains(keyword))
+                    {
+                        // 对于包含企业名称关键词的情况，需要更谨慎处理
+                        if (enterpriseName.Contains("万兴") && !content.Contains("万兴花园"))
+                        {
+                            // 如果企业名称包含"万兴"但投诉内容不包含"万兴花园"，跳过匹配
+                            continue;
+                        }
+                        
+                        resultMap[content] = enterpriseName;
+                        Console.WriteLine($"{columnName}匹配成功: '{keyword}' 在 '{content.Substring(0, Math.Min(50, content.Length))}...' -> 企业: {enterpriseName}");
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+        
+        /// <summary>
+        /// 模糊匹配关键词 - 提高模糊匹配的准确性，避免过度匹配
+        /// </summary>
+        private bool FuzzyMatchKeywords(string content, List<string> keywords, string enterpriseName, Dictionary<string, string> resultMap, string columnName)
+        {
+            foreach (var keyword in keywords)
+            {
+                if (!string.IsNullOrEmpty(keyword) && keyword.Length > 3) // 模糊匹配要求至少4个字符
+                {
+                    // 尝试关键词的部分匹配
+                    string[] parts = keyword.Split(' ', '\t', '，', ',', '\n', '\r');
+                    foreach (var part in parts)
+                    {
+                        // 部分匹配要求至少3个字符，减少误匹配
+                        if (part.Length > 2 && content.Contains(part))
+                        {
+                            // 对于可能导致误匹配的情况进行额外检查
+                            if (enterpriseName.Contains("万兴") && !content.Contains("万兴花园"))
+                            {
+                                // 如果企业名称包含"万兴"但投诉内容不包含"万兴花园"，跳过模糊匹配
+                                continue;
+                            }
+                            
+                            resultMap[content] = enterpriseName;
+                            Console.WriteLine($"{columnName}模糊匹配成功: '{part}' (来自 '{keyword}') 在 '{content.Substring(0, Math.Min(50, content.Length))}...' -> 企业: {enterpriseName}");
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 从NPOI工作表中提取企业名称（支持从"供热站名称：恒泰"格式中提取"恒泰"）
+        /// </summary>
+        /// <param name="worksheet">NPOI Excel工作表</param>
+        /// <returns>提取的企业名称</returns>
+        private string ExtractEnterpriseNameFromNPOI(ISheet worksheet)
+        {
+            // 尝试多个可能的位置提取企业名称
+            // 定义行和列的索引组合（行索引从0开始，列索引从0开始）
+            // (行, 列) 对应 Excel 单元格位置
+            // 优先从A2和B1单元格提取
+            var potentialLocations = new[]
+            {
+                (row: 1, col: 0), // A2
+                (row: 0, col: 1), // B1
+                (row: 1, col: 1), // B2
+                (row: 0, col: 0), // A1
+                (row: 1, col: 2)  // C2
+            };
+            
+            foreach (var (row, col) in potentialLocations)
+            {
+                try
+                {
+                    IRow sheetRow = worksheet.GetRow(row);
+                    if (sheetRow != null)
+                    {
+                        ICell cell = sheetRow.GetCell(col);
+                        string cellValue = GetCellValue(cell)?.Trim();
+                        
+                        if (!string.IsNullOrEmpty(cellValue))
+                        {
+                            char[] separators = { '：', ':' };
+                            Console.WriteLine($"检查单元格 ({row+1},{col+1}): '{cellValue}'");
+                            
+                            // 检查是否包含供热站名称标识
+                            if (cellValue.Contains("供热站名称") || cellValue.Contains("供热站"))
+                            {
+                                // 处理"供热站名称：恒泰"格式
+                                foreach (char separator in separators)
+                                {
+                                    if (cellValue.Contains(separator))
+                                    {
+                                        string name = cellValue.Split(separator)[1].Trim();
+                                        if (!string.IsNullOrEmpty(name)) 
+                                        {
+                                            Console.WriteLine($"从格式'供热站名称{separator}XXX'中提取企业名称: {name}");
+                                            return name;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // 清理可能的前缀并返回
+                            if (cellValue.Contains("站") || cellValue.Contains("公司") || cellValue.Contains("供热"))
+                            {
+                                // 清理常见前缀
+                                if (cellValue.StartsWith("供热站名称：", StringComparison.OrdinalIgnoreCase))
+                                    return cellValue.Substring(5).Trim();
+                                if (cellValue.StartsWith("供热站名称:", StringComparison.OrdinalIgnoreCase))
+                                    return cellValue.Substring(5).Trim();
+                                return cellValue;
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"提取单元格 ({row+1},{col+1}) 时出错: {ex.Message}");
+                }
+            }
+            
+            return null;
+        }
+
+        private string GetCellValue(ICell cell)
+        {
+            if (cell == null)
+            {
+                return null;
+            }
+
+            switch (cell.CellType)
+            {
+                case CellType.String:
+                    return cell.StringCellValue;
+                case CellType.Numeric:
+                    if (DateUtil.IsCellDateFormatted(cell))
+                    {
+                        return cell.DateCellValue.ToString();
+                    }
+                    return cell.NumericCellValue.ToString();
+                case CellType.Boolean:
+                    return cell.BooleanCellValue.ToString();
+                case CellType.Formula:
+                    IFormulaEvaluator evaluator = new HSSFFormulaEvaluator(cell.Sheet.Workbook);
+                    CellValue evaluatedValue = evaluator.Evaluate(cell);
+                    return GetCellValueFromEvaluatedCell(evaluatedValue);
+                default:
+                    return null;
+            }
+        }
+
+        private string GetCellValueFromEvaluatedCell(CellValue cellValue)
+        {
+            if (cellValue == null)
+            {
+                return null;
+            }
+
+            switch (cellValue.CellType)
+            {
+                case CellType.String:
+                    return cellValue.StringValue;
+                case CellType.Numeric:
+                    // 对于CellValue类型，不使用DateUtil.IsCellDateFormatted，直接处理数值
+                    return cellValue.NumberValue.ToString();
+                case CellType.Boolean:
+                    return cellValue.BooleanValue.ToString();
+                default:
+                    return null;
+            }
+        }
+
+        
+
     }
 }

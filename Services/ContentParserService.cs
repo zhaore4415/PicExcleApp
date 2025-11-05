@@ -291,12 +291,13 @@ namespace PicExcleApp.Services
         {
             try
             {
+                // 注释掉从heating.db查询供热站的代码，现在从data.xls获取企业信息
                 // 优先使用数据库进行模糊匹配
-                string heatingArea = _databaseService.GetHeatingAreaByName(content);
-                if (!string.IsNullOrEmpty(heatingArea) && heatingArea != "未知")
-                {
-                    return heatingArea;
-                }
+                //string heatingArea = _databaseService.GetHeatingAreaByName(content);
+                //if (!string.IsNullOrEmpty(heatingArea) && heatingArea != "未知")
+                //{
+                //    return heatingArea;
+                //}
             }
             catch (System.Exception ex)
             {

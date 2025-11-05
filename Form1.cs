@@ -503,7 +503,7 @@ namespace PicExcleApp
                 {
                     for (int i = _processingDataList.Count - 1; i >= 0; i--)
                     {
-                        if (removedFiles.Contains(_processingDataList[i].OriginalImagePath))
+                        if (_processingDataList[i]?.OriginalImagePath != null && removedFiles.Contains(_processingDataList[i].OriginalImagePath))
                         {
                             _processingDataList.RemoveAt(i);
                         }
@@ -543,6 +543,56 @@ namespace PicExcleApp
             Log("开始处理图片...");
             await ProcessImagesAsync([.. imageListBox.Items.Cast<string>()]);
             Log("图片处理完成");
+            
+            // 处理完成后，从data.xls提取企业信息并更新
+            Log("开始从data.xls文件提取企业信息...");
+            UpdateEnterprisesFromDataFile();
+        }
+        
+        /// <summary>
+        /// 从data.xls文件提取企业信息并更新涉及企业字段
+        /// </summary>
+        private void UpdateEnterprisesFromDataFile()
+        {
+            try
+            {
+                // 获取所有投诉内容
+                List<string> complaintContents = _processingDataList
+                    .Where(data => !string.IsNullOrEmpty(data.Content))
+                    .Select(data => data.Content!)
+                    .ToList();
+                
+                if (complaintContents.Count == 0)
+                {
+                    Log("没有可匹配的投诉内容");
+                    return;
+                }
+                
+                // 调用新方法提取企业信息
+                Dictionary<string, string> enterpriseMap = _excelExportService.ExtractEnterpriseInfoFromDataFile(
+                    Application.StartupPath, complaintContents);
+                
+                // 更新涉及企业字段
+                int updatedCount = 0;
+                foreach (var data in _processingDataList)
+                {
+                    if (!string.IsNullOrEmpty(data.Content) && enterpriseMap.TryGetValue(data.Content, out string? enterpriseName) && enterpriseName != null)
+                    {
+                        data.HeatingArea = enterpriseName;
+                        updatedCount++;
+                    }
+                }
+                
+                // 更新界面显示
+                _bindingList.ResetBindings();
+                UpdateDataGridView();
+                
+                Log($"成功更新 {updatedCount} 条记录的涉及企业字段");
+            }
+            catch (Exception ex)
+            {
+                Log($"从data.xls提取企业信息时出错: {ex.Message}");
+            }
         }
 
         private async Task ProcessImagesAsync(string[] imagePaths)
@@ -567,10 +617,10 @@ namespace PicExcleApp
                         MemoryStream? processedImage = _imageProcessingService?.PreprocessImage(imagePath);
 
                         // 文字识别
-                        string ocrText = _ocrService?.RecognizeText(processedImage);
+                        string? ocrText = processedImage != null ? _ocrService?.RecognizeText(processedImage) : null;
 
                         // 解析数据
-                        ComplaintData? complaintData = _contentParserService?.ParseToComplaintData(ocrText, imagePath);
+                        ComplaintData? complaintData = !string.IsNullOrEmpty(ocrText) ? _contentParserService?.ParseToComplaintData(ocrText, imagePath) : null;
                         if (complaintData != null)
                         {
                             // 添加到结果列表
@@ -687,7 +737,7 @@ namespace PicExcleApp
                         {
                             if (row != null && row.Cells != null && serialColumnIndex >= 0 && row.Cells.Count > serialColumnIndex)
                             {
-                                DataGridViewCell cell = row.Cells[serialColumnIndex];
+                                DataGridViewCell? cell = row.Cells?[serialColumnIndex];
                                 if (cell != null)
                                 {
                                     cell.Value = row.Index + 1;
@@ -770,25 +820,74 @@ namespace PicExcleApp
         private void ImportCommunityButton_Click(object? sender, EventArgs e)
         {
             using OpenFileDialog openFileDialog = new();
-            openFileDialog.Filter = "Excel文件|*.xlsx";
-
+            openFileDialog.Filter = "Excel文件|*.xlsx|所有文件|*.*";
+            openFileDialog.Title = "选择燃气表Excel文件";
+            
             if (openFileDialog.ShowDialog() == DialogResult.OK)
             {
                 try
                 {
-                    Dictionary<string, string> communityMap = _excelExportService.ImportCommunityMap(openFileDialog.FileName);
-                    _keywordConfig.CommunityToAreaMap = communityMap;
-                    _configManagerService.SaveConfig(_keywordConfig);
+                    string filePath = openFileDialog.FileName;
+                    
+                    Log($"开始导入燃气表数据: {filePath}");
+                    
+                    // 导入数据
+                    List<ComplaintData> importedData = _excelExportService.ImportGasMeterData(filePath);
+                    
+                    if (importedData.Count == 0)
+                    {
+                        Log("导入的燃气表数据为空");
+                        _ = MessageBox.Show("导入的燃气表数据为空！");
+                        return;
+                    }
 
-                    // 更新内容解析服务的配置
-                    _contentParserService = new ContentParserService(_ocrService, _keywordConfig);
+                    // 为每个投诉内容调用DatabaseService查询并更新涉及企业 - 已注释，现在从data.xls获取企业信息
+                    foreach (var data in importedData)
+                    {
+                        // 注释掉从heating.db查询供热站的代码
+                        //if (!string.IsNullOrEmpty(data.Content) && _databaseService != null)
+                        //{
+                        //    // 使用GetHeatingAreaByName方法查询涉及企业
+                        //    string heatingArea = _databaseService.GetHeatingAreaByName(data.Content);
+                        //    data.HeatingArea = heatingArea;
+                        //}
+                        //else
+                        //{
+                            // 现在默认设置为空，后续会从data.xls更新
+                            data.HeatingArea = string.Empty;
+                        //}
+                        
+                        // 设置默认值
+                        if (string.IsNullOrEmpty(data.Source))
+                            data.Source = "燃气表导入";
+                        if (string.IsNullOrEmpty(data.Category))
+                            data.Category = "燃气相关";
+                        if (string.IsNullOrEmpty(data.Result))
+                            data.Result = string.Empty;
+                    }
 
-                    Log($"成功导入 {communityMap.Count} 个小区映射");
-                    _ = MessageBox.Show("小区映射导入成功！");
+                    // 清空现有数据并添加新导入的数据
+                    _processingDataList.Clear();
+                    foreach (var data in importedData)
+                    {
+                        _processingDataList.Add(data);
+                    }
+
+                    // 更新界面显示
+                    _bindingList.ResetBindings();
+                    UpdateDataGridView();
+
+                    Log($"成功导入 {importedData.Count} 条燃气表数据");
+                    
+                    // 导入完成后，从data.xls提取企业信息并更新
+                    Log("开始从data.xls文件提取企业信息...");
+                    UpdateEnterprisesFromDataFile();
+                    
+                    _ = MessageBox.Show($"成功导入 {importedData.Count} 条燃气表数据并更新了涉及企业字段！");
                 }
                 catch (Exception ex)
                 {
-                    Log($"导入失败: {ex.Message}");
+                    Log($"导入燃气表数据失败: {ex.Message}");
                     _ = MessageBox.Show("导入失败: " + ex.Message);
                 }
             }
@@ -846,7 +945,7 @@ namespace PicExcleApp
                         int serialColumnIndex = dgv.Columns["序号"].Index;
                         if (serialColumnIndex >= 0 && dgv.Rows[e.RowIndex].Cells.Count > serialColumnIndex)
                         {
-                            DataGridViewCell cell = dgv.Rows[e.RowIndex].Cells[serialColumnIndex];
+                            DataGridViewCell? cell = dgv.Rows[e.RowIndex].Cells?[serialColumnIndex];
                             if (cell != null)
                             {
                                 cell.Value = e.RowIndex + 1;
@@ -1007,10 +1106,12 @@ namespace PicExcleApp
                         }
                     }
 
-                    // 如果编辑的是投诉内容列，重新匹配供热区域
+                    // 如果编辑的是投诉内容列，从data.xls重新匹配涉及企业
                     if (isComplaintContentColumn && newValue is string newComplaintContent)
                     {
-                        UpdateHeatingAreaForComplaint(data, newComplaintContent, e.RowIndex, originalHeatingArea);
+                        // 直接调用从data.xls更新企业信息的方法
+                        Log($"编辑了投诉内容，从data.xls重新匹配涉及企业: {newComplaintContent}");
+                        UpdateEnterprisesFromDataFile();
                     }
                 }
             }
@@ -1020,44 +1121,46 @@ namespace PicExcleApp
             }
         }
 
-        /// <summary>
-        /// 根据投诉内容更新供热区域
-        /// </summary>
-        /// <param name="data">投诉数据对象</param>
-        /// <param name="complaintContent">投诉内容</param>
-        /// <param name="rowIndex">行索引</param>
-        /// <param name="originalHeatingArea">原始供热区域</param>
-        private void UpdateHeatingAreaForComplaint(ComplaintData data, string complaintContent, int rowIndex, string? originalHeatingArea)
-        {
-            try
-            {
-                if (_databaseService == null)
-                {
-                    Log("数据库服务未初始化，跳过供热区域匹配");
-                    return;
-                }
+        ///// <summary>
+        ///// 根据投诉内容更新供热区域
+        ///// </summary>
+        ///// <param name="data">投诉数据对象</param>
+        ///// <param name="complaintContent">投诉内容</param>
+        ///// <param name="rowIndex">行索引</param>
+        ///// <param name="originalHeatingArea">原始供热区域</param>
+        //private void UpdateHeatingAreaForComplaint(ComplaintData data, string complaintContent, int rowIndex, string? originalHeatingArea)
+        //{
+        //    try
+        //    {
+        //        // 注释掉从heating.db查询供热站的代码
+        //        //if (_databaseService == null)
+        //        //{
+        //        //    Log("数据库服务未初始化，跳过供热区域匹配");
+        //        //    return;
+        //        //}
 
-                Log($"开始为第{rowIndex + 1}行重新匹配供热区域");
-                string? matchedHeatingArea = _databaseService.GetHeatingAreaByName(complaintContent);
+        //        //Log($"开始为第{rowIndex + 1}行重新匹配供热区域");
+        //        //string? matchedHeatingArea = _databaseService.GetHeatingAreaByName(complaintContent);
 
-                if (!string.IsNullOrEmpty(matchedHeatingArea))
-                {
-                    data.HeatingArea = matchedHeatingArea;
-                    Log($"第{rowIndex + 1}行供热区域已更新: {originalHeatingArea} -> {matchedHeatingArea}");
+        //        //if (!string.IsNullOrEmpty(matchedHeatingArea))
+        //        //{
+        //        //    data.HeatingArea = matchedHeatingArea;
+        //        //    Log($"第{rowIndex + 1}行供热区域已更新: {originalHeatingArea} -> {matchedHeatingArea}");
 
-                    // 刷新DataGridView以显示更新后的值
-                    dataGridView.Refresh();
-                }
-                else
-                {
-                    Log($"第{rowIndex + 1}行未匹配到供热区域");
-                }
-            }
-            catch (Exception ex)
-            {
-                Log($"重新匹配供热区域时出错: {ex.Message}");
-            }
-        }
+        //        //    // 刷新DataGridView以显示更新后的值
+        //        //    dataGridView.Refresh();
+        //        //}
+        //        // 现在直接从data.xls获取企业信息，不需要从heating.db匹配
+        //        else
+        //        {
+        //            Log($"第{rowIndex + 1}行未匹配到供热区域");
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        Log($"重新匹配供热区域时出错: {ex.Message}");
+        //    }
+        //}
 
         private void dataGridView_SelectionChanged(object sender, EventArgs e)
         {

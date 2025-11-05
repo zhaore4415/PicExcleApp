@@ -85,7 +85,7 @@ partial class Form1
         dataGridView.RowHeadersVisible = false;
         dataGridView.RowHeadersWidth = 62;
         dataGridView.SelectionMode = DataGridViewSelectionMode.CellSelect;
-        dataGridView.Size = new Size(977, 400);
+        dataGridView.Size = new Size(590, 282);
         dataGridView.TabIndex = 0;
         dataGridView.CellBeginEdit += dataGridView_CellBeginEdit;
         dataGridView.CellClick += dataGridView_CellClick;
@@ -101,19 +101,19 @@ partial class Form1
         // 
         centerPanel.Controls.Add(dataGridView);
         centerPanel.Dock = DockStyle.Fill;
-        centerPanel.Location = new Point(300, 0);
+        centerPanel.Location = new Point(191, 0);
         centerPanel.Margin = new Padding(0);
         centerPanel.Name = "centerPanel";
-        centerPanel.Size = new Size(977, 400);
+        centerPanel.Size = new Size(590, 282);
         centerPanel.TabIndex = 1;
         // 
         // pictureBox
         // 
         pictureBox.Dock = DockStyle.Fill;
-        pictureBox.Location = new Point(1277, 0);
+        pictureBox.Location = new Point(781, 0);
         pictureBox.Margin = new Padding(0);
         pictureBox.Name = "pictureBox";
-        pictureBox.Size = new Size(250, 400);
+        pictureBox.Size = new Size(191, 282);
         pictureBox.SizeMode = PictureBoxSizeMode.Zoom;
         pictureBox.TabIndex = 2;
         pictureBox.TabStop = false;
@@ -126,7 +126,7 @@ partial class Form1
         imageListBox.Location = new Point(0, 0);
         imageListBox.Margin = new Padding(0);
         imageListBox.Name = "imageListBox";
-        imageListBox.Size = new Size(300, 400);
+        imageListBox.Size = new Size(191, 282);
         imageListBox.TabIndex = 0;
         // 
         // topPanel
@@ -140,16 +140,18 @@ partial class Form1
         topPanel.Controls.Add(clearImagesButton);
         topPanel.Dock = DockStyle.Top;
         topPanel.Location = new Point(0, 0);
+        topPanel.Margin = new Padding(2, 2, 2, 2);
         topPanel.Name = "topPanel";
-        topPanel.Size = new Size(1527, 100);
+        topPanel.Size = new Size(972, 71);
         topPanel.TabIndex = 0;
         // 
         // exportButton
         // 
         exportButton.BackColor = Color.LightBlue;
-        exportButton.Location = new Point(614, 20);
+        exportButton.Location = new Point(414, 14);
+        exportButton.Margin = new Padding(2, 2, 2, 2);
         exportButton.Name = "exportButton";
-        exportButton.Size = new Size(101, 40);
+        exportButton.Size = new Size(64, 28);
         exportButton.TabIndex = 4;
         exportButton.Text = "导出Excel";
         exportButton.UseVisualStyleBackColor = false;
@@ -158,9 +160,10 @@ partial class Form1
         // processButton
         // 
         processButton.BackColor = Color.LightGreen;
-        processButton.Location = new Point(504, 20);
+        processButton.Location = new Point(341, 14);
+        processButton.Margin = new Padding(2, 2, 2, 2);
         processButton.Name = "processButton";
-        processButton.Size = new Size(101, 40);
+        processButton.Size = new Size(64, 28);
         processButton.TabIndex = 3;
         processButton.Text = "开始处理";
         processButton.UseVisualStyleBackColor = false;
@@ -168,9 +171,10 @@ partial class Form1
         // 
         // importKeywordButton
         // 
-        importKeywordButton.Location = new Point(374, 20);
+        importKeywordButton.Location = new Point(256, 14);
+        importKeywordButton.Margin = new Padding(2, 2, 2, 2);
         importKeywordButton.Name = "importKeywordButton";
-        importKeywordButton.Size = new Size(119, 40);
+        importKeywordButton.Size = new Size(76, 28);
         importKeywordButton.TabIndex = 2;
         importKeywordButton.Text = "导入关键词";
         importKeywordButton.UseVisualStyleBackColor = true;
@@ -178,9 +182,10 @@ partial class Form1
         // 
         // importCommunityButton
         // 
-        importCommunityButton.Location = new Point(242, 20);
+        importCommunityButton.Location = new Point(155, 14);
+        importCommunityButton.Margin = new Padding(2, 2, 2, 2);
         importCommunityButton.Name = "importCommunityButton";
-        importCommunityButton.Size = new Size(119, 40);
+        importCommunityButton.Size = new Size(91, 28);
         importCommunityButton.TabIndex = 1;
         importCommunityButton.Text = "导入小区映射";
         importCommunityButton.UseVisualStyleBackColor = true;
@@ -188,9 +193,10 @@ partial class Form1
         // 
         // importButton
         // 
-        importButton.Location = new Point(20, 20);
+        importButton.Location = new Point(13, 14);
+        importButton.Margin = new Padding(2, 2, 2, 2);
         importButton.Name = "importButton";
-        importButton.Size = new Size(101, 40);
+        importButton.Size = new Size(64, 28);
         importButton.TabIndex = 0;
         importButton.Text = "导入图片";
         importButton.UseVisualStyleBackColor = true;
@@ -198,9 +204,10 @@ partial class Form1
         // 
         // clearImagesButton
         // 
-        clearImagesButton.Location = new Point(130, 20);
+        clearImagesButton.Location = new Point(84, 14);
+        clearImagesButton.Margin = new Padding(2, 2, 2, 2);
         clearImagesButton.Name = "clearImagesButton";
-        clearImagesButton.Size = new Size(101, 40);
+        clearImagesButton.Size = new Size(64, 28);
         clearImagesButton.TabIndex = 5;
         clearImagesButton.Text = "清除图片";
         clearImagesButton.UseVisualStyleBackColor = true;
@@ -209,48 +216,52 @@ partial class Form1
         // progressBar
         // 
         progressBar.Dock = DockStyle.Top;
-        progressBar.Location = new Point(0, 100);
+        progressBar.Location = new Point(0, 71);
+        progressBar.Margin = new Padding(2, 2, 2, 2);
         progressBar.Name = "progressBar";
-        progressBar.Size = new Size(1527, 30);
+        progressBar.Size = new Size(972, 21);
         progressBar.TabIndex = 1;
         // 
         // logTextBox
         // 
         logTextBox.Dock = DockStyle.Bottom;
-        logTextBox.Location = new Point(0, 530);
+        logTextBox.Location = new Point(0, 374);
+        logTextBox.Margin = new Padding(2, 2, 2, 2);
         logTextBox.Name = "logTextBox";
         logTextBox.ReadOnly = true;
-        logTextBox.Size = new Size(1527, 200);
+        logTextBox.Size = new Size(972, 143);
         logTextBox.TabIndex = 2;
         logTextBox.Text = "";
         // 
         // mainLayoutPanel
         // 
         mainLayoutPanel.ColumnCount = 3;
-        mainLayoutPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300F));
+        mainLayoutPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 191F));
         mainLayoutPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        mainLayoutPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300F));
+        mainLayoutPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 191F));
         mainLayoutPanel.Controls.Add(imageListBox, 0, 0);
         mainLayoutPanel.Controls.Add(centerPanel, 1, 0);
         mainLayoutPanel.Controls.Add(pictureBox, 2, 0);
         mainLayoutPanel.Dock = DockStyle.Fill;
-        mainLayoutPanel.Location = new Point(0, 130);
+        mainLayoutPanel.Location = new Point(0, 92);
+        mainLayoutPanel.Margin = new Padding(2, 2, 2, 2);
         mainLayoutPanel.Name = "mainLayoutPanel";
         mainLayoutPanel.RowCount = 1;
         mainLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-        mainLayoutPanel.Size = new Size(1527, 400);
+        mainLayoutPanel.Size = new Size(972, 282);
         mainLayoutPanel.TabIndex = 3;
         // 
         // Form1
         // 
         AllowDrop = true;
-        AutoScaleDimensions = new SizeF(11F, 24F);
+        AutoScaleDimensions = new SizeF(7F, 17F);
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(1527, 730);
+        ClientSize = new Size(972, 517);
         Controls.Add(mainLayoutPanel);
         Controls.Add(logTextBox);
         Controls.Add(progressBar);
         Controls.Add(topPanel);
+        Margin = new Padding(2, 2, 2, 2);
         Name = "Form1";
         Text = "图片批量录入输出Excel系统";
         Shown += Form1_Shown;
