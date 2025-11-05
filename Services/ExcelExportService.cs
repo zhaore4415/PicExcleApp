@@ -267,7 +267,7 @@ namespace PicExcleApp.Services
 
                             // 收集并匹配B列关键词
                             List<string> columnBKeywords = new List<string>();
-                            for (int row = 2; row <= Math.Min(worksheet.LastRowNum, 99); row++)
+                            for (int row = 2; row <= Math.Min(worksheet.LastRowNum, 399); row++)
                             {
                                 IRow currentRow = worksheet.GetRow(row);
                                 if (currentRow != null)

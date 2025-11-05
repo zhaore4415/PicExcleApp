@@ -17,7 +17,6 @@ partial class Form1
     private System.Windows.Forms.Panel topPanel;
     private System.Windows.Forms.Button importButton;
     private System.Windows.Forms.Button importCommunityButton;
-    private System.Windows.Forms.Button importKeywordButton;
     private System.Windows.Forms.Button processButton;
     private System.Windows.Forms.Button exportButton;
     private System.Windows.Forms.Button clearImagesButton;
@@ -53,7 +52,6 @@ partial class Form1
         topPanel = new Panel();
         exportButton = new Button();
         processButton = new Button();
-        importKeywordButton = new Button();
         importCommunityButton = new Button();
         importButton = new Button();
         clearImagesButton = new Button();
@@ -134,13 +132,12 @@ partial class Form1
         topPanel.BackColor = Color.LightGray;
         topPanel.Controls.Add(exportButton);
         topPanel.Controls.Add(processButton);
-        topPanel.Controls.Add(importKeywordButton);
         topPanel.Controls.Add(importCommunityButton);
         topPanel.Controls.Add(importButton);
         topPanel.Controls.Add(clearImagesButton);
         topPanel.Dock = DockStyle.Top;
         topPanel.Location = new Point(0, 0);
-        topPanel.Margin = new Padding(2, 2, 2, 2);
+        topPanel.Margin = new Padding(2);
         topPanel.Name = "topPanel";
         topPanel.Size = new Size(972, 71);
         topPanel.TabIndex = 0;
@@ -148,8 +145,8 @@ partial class Form1
         // exportButton
         // 
         exportButton.BackColor = Color.LightBlue;
-        exportButton.Location = new Point(414, 14);
-        exportButton.Margin = new Padding(2, 2, 2, 2);
+        exportButton.Location = new Point(337, 14);
+        exportButton.Margin = new Padding(2);
         exportButton.Name = "exportButton";
         exportButton.Size = new Size(64, 28);
         exportButton.TabIndex = 4;
@@ -160,8 +157,8 @@ partial class Form1
         // processButton
         // 
         processButton.BackColor = Color.LightGreen;
-        processButton.Location = new Point(341, 14);
-        processButton.Margin = new Padding(2, 2, 2, 2);
+        processButton.Location = new Point(88, 14);
+        processButton.Margin = new Padding(2);
         processButton.Name = "processButton";
         processButton.Size = new Size(64, 28);
         processButton.TabIndex = 3;
@@ -169,21 +166,10 @@ partial class Form1
         processButton.UseVisualStyleBackColor = false;
         processButton.Click += ProcessButton_Click;
         // 
-        // importKeywordButton
-        // 
-        importKeywordButton.Location = new Point(256, 14);
-        importKeywordButton.Margin = new Padding(2, 2, 2, 2);
-        importKeywordButton.Name = "importKeywordButton";
-        importKeywordButton.Size = new Size(76, 28);
-        importKeywordButton.TabIndex = 2;
-        importKeywordButton.Text = "导入关键词";
-        importKeywordButton.UseVisualStyleBackColor = true;
-        importKeywordButton.Click += ImportKeywordButton_Click;
-        // 
         // importCommunityButton
         // 
-        importCommunityButton.Location = new Point(155, 14);
-        importCommunityButton.Margin = new Padding(2, 2, 2, 2);
+        importCommunityButton.Location = new Point(237, 14);
+        importCommunityButton.Margin = new Padding(2);
         importCommunityButton.Name = "importCommunityButton";
         importCommunityButton.Size = new Size(91, 28);
         importCommunityButton.TabIndex = 1;
@@ -194,7 +180,7 @@ partial class Form1
         // importButton
         // 
         importButton.Location = new Point(13, 14);
-        importButton.Margin = new Padding(2, 2, 2, 2);
+        importButton.Margin = new Padding(2);
         importButton.Name = "importButton";
         importButton.Size = new Size(64, 28);
         importButton.TabIndex = 0;
@@ -204,8 +190,8 @@ partial class Form1
         // 
         // clearImagesButton
         // 
-        clearImagesButton.Location = new Point(84, 14);
-        clearImagesButton.Margin = new Padding(2, 2, 2, 2);
+        clearImagesButton.Location = new Point(162, 14);
+        clearImagesButton.Margin = new Padding(2);
         clearImagesButton.Name = "clearImagesButton";
         clearImagesButton.Size = new Size(64, 28);
         clearImagesButton.TabIndex = 5;
@@ -217,7 +203,7 @@ partial class Form1
         // 
         progressBar.Dock = DockStyle.Top;
         progressBar.Location = new Point(0, 71);
-        progressBar.Margin = new Padding(2, 2, 2, 2);
+        progressBar.Margin = new Padding(2);
         progressBar.Name = "progressBar";
         progressBar.Size = new Size(972, 21);
         progressBar.TabIndex = 1;
@@ -226,7 +212,7 @@ partial class Form1
         // 
         logTextBox.Dock = DockStyle.Bottom;
         logTextBox.Location = new Point(0, 374);
-        logTextBox.Margin = new Padding(2, 2, 2, 2);
+        logTextBox.Margin = new Padding(2);
         logTextBox.Name = "logTextBox";
         logTextBox.ReadOnly = true;
         logTextBox.Size = new Size(972, 143);
@@ -244,7 +230,7 @@ partial class Form1
         mainLayoutPanel.Controls.Add(pictureBox, 2, 0);
         mainLayoutPanel.Dock = DockStyle.Fill;
         mainLayoutPanel.Location = new Point(0, 92);
-        mainLayoutPanel.Margin = new Padding(2, 2, 2, 2);
+        mainLayoutPanel.Margin = new Padding(2);
         mainLayoutPanel.Name = "mainLayoutPanel";
         mainLayoutPanel.RowCount = 1;
         mainLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
@@ -261,7 +247,7 @@ partial class Form1
         Controls.Add(logTextBox);
         Controls.Add(progressBar);
         Controls.Add(topPanel);
-        Margin = new Padding(2, 2, 2, 2);
+        Margin = new Padding(2);
         Name = "Form1";
         Text = "图片批量录入输出Excel系统";
         Shown += Form1_Shown;
