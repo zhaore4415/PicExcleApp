@@ -198,18 +198,18 @@ namespace PicExcleApp.Services
                 for (int row = 2; row <= rowCount; row++)
                 {
                     var complaintData = new ComplaintData();
-                    
+
                     // 尝试从不同列获取数据（根据实际Excel结构调整）
-                    complaintData.Content = worksheet.Cells[row, 1]?.Text; // 投诉内容
-                    complaintData.WorkOrderNumber = worksheet.Cells[row, 2]?.Text; // 工单号
-                    complaintData.Phone = worksheet.Cells[row, 3]?.Text; // 联系电话
+                    complaintData.WorkOrderNumber = worksheet.Cells[row, 1]?.Text; // 工单号
+                    complaintData.Content = worksheet.Cells[row, 4]?.Text; // 投诉内容
+                    complaintData.Phone = worksheet.Cells[row, 13]?.Text; // 联系电话
                     complaintData.HeatingArea = "";
                     complaintData.Category = "";
                     complaintData.Result = "";
                     complaintData.Temperature = "";
                     complaintData.Source = "燃气表数据";
-                    complaintData.CreateTime = DateTime.Now.ToString("yyyy-MM-dd");
-                    
+                    complaintData.CreateTime = worksheet.Cells[row, 8]?.Text; // 信仿日期交办时间
+
                     dataList.Add(complaintData);
                 }
             }
