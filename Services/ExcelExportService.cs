@@ -13,6 +13,16 @@ namespace PicExcleApp.Services
     /// </summary>
     public class ExcelExportService
     {
+        private readonly KeywordConfig _keywordConfig;
+        
+        /// <summary>
+        /// 构造函数
+        /// </summary>
+        /// <param name="keywordConfig">关键词配置</param>
+        public ExcelExportService(KeywordConfig keywordConfig = null)
+        {
+            _keywordConfig = keywordConfig ?? new KeywordConfig();
+        }
         /// <summary>
         /// 导出数据到Excel文件
         /// </summary>
@@ -204,11 +214,41 @@ namespace PicExcleApp.Services
                     complaintData.Content = worksheet.Cells[row, 4]?.Text; // 投诉内容
                     complaintData.Phone = worksheet.Cells[row, 13]?.Text; // 联系电话
                     complaintData.HeatingArea = "";
-                    complaintData.Category = "";
                     complaintData.Result = "";
                     complaintData.Temperature = "";
                     complaintData.Source = "燃气表数据";
                     complaintData.CreateTime = worksheet.Cells[row, 8]?.Text; // 信仿日期交办时间
+
+                    // 基于关键词的分类赋值逻辑
+                    string content = complaintData.Content ?? string.Empty;
+                    if (!string.IsNullOrEmpty(content))
+                    {
+                        // 使用公共关键词配置
+                        // 检查是否包含供热质量类关键词
+                        bool isHeatingQuality = _keywordConfig.HeatingQualityKeywords.Any(keyword => content.Contains(keyword));
+                        // 检查是否包含维修类关键词
+                        bool isMaintenance = _keywordConfig.MaintenanceKeywords.Any(keyword => content.Contains(keyword));
+                        // 检查是否包含政策咨询类关键词
+                        bool isPolicy = _keywordConfig.PolicyKeywords.Any(keyword => content.Contains(keyword));
+                        // 检查是否包含服务类关键词
+                        bool isService = _keywordConfig.ServiceKeywords.Any(keyword => content.Contains(keyword));
+
+                        // 设置分类优先级：供热质量类 > 维修类 > 政策咨询类 > 服务类
+                        if (isHeatingQuality)
+                            complaintData.Category = "供热质量类";
+                        else if (isMaintenance)
+                            complaintData.Category = "维修类";
+                        else if (isPolicy)
+                            complaintData.Category = "政策咨询类";
+                        else if (isService)
+                            complaintData.Category = "服务类";
+                        else
+                            complaintData.Category = "无";
+                    }
+                    else
+                    {
+                        complaintData.Category = "无";
+                    }
 
                     dataList.Add(complaintData);
                 }

@@ -18,6 +18,26 @@ namespace PicExcleApp.Models
         public Dictionary<string, string> CommunityToAreaMap { get; set; }
         
         /// <summary>
+        /// 供热质量类关键词
+        /// </summary>
+        public string[] HeatingQualityKeywords { get; private set; }
+        
+        /// <summary>
+        /// 维修类关键词
+        /// </summary>
+        public string[] MaintenanceKeywords { get; private set; }
+        
+        /// <summary>
+        /// 政策咨询类关键词
+        /// </summary>
+        public string[] PolicyKeywords { get; private set; }
+        
+        /// <summary>
+        /// 服务类关键词
+        /// </summary>
+        public string[] ServiceKeywords { get; private set; }
+        
+        /// <summary>
         /// 构造函数
         /// </summary>
         public KeywordConfig()
@@ -31,6 +51,12 @@ namespace PicExcleApp.Models
             };
             
             CommunityToAreaMap = new Dictionary<string, string>();
+            
+            // 初始化公共关键词数组
+            HeatingQualityKeywords = new string[] { "不热", "冰凉", "18", "温乎" };
+            MaintenanceKeywords = new string[] { "管道", "地暖", "漏水", "爆管" };
+            PolicyKeywords = new string[] { "退费", "收费", "缴费", "标准" };
+            ServiceKeywords = new string[] { "态度", "不接", "没人接", "骂人" };
         }
     }
 }

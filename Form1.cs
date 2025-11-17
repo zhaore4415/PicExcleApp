@@ -14,7 +14,6 @@ namespace PicExcleApp
         private ContentParserService _contentParserService;
         private readonly ExcelExportService _excelExportService;
         private readonly ConfigManagerService _configManagerService;
-        private readonly DatabaseService _databaseService;
 
         // 配置和数据
         private readonly KeywordConfig _keywordConfig;
@@ -32,7 +31,6 @@ namespace PicExcleApp
             _keywordConfig = _configManagerService.LoadConfig();
             _contentParserService = new ContentParserService(_ocrService, _keywordConfig);
             _excelExportService = new ExcelExportService();
-            _databaseService = new DatabaseService();
             try
             {
                 Log("数据库服务初始化成功");

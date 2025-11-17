@@ -146,7 +146,7 @@ namespace PicExcleApp.Services
         private string ExtractWorkOrderNumber(string text)
         {
             // 查找以DH开头的工单号（用户明确指出工单号格式为DH开头）
-            var match = Regex.Match(text, @"DH\d{16}", RegexOptions.IgnoreCase);
+            var match = Regex.Match(text, @"DH\d{17}", RegexOptions.IgnoreCase);
             if (match.Success)
                 return match.Value;
             
@@ -156,7 +156,7 @@ namespace PicExcleApp.Services
                 return match.Groups[1].Value;
             
             // 尝试通过关键词匹配，忽略字符间的空格
-            match = Regex.Match(text, @"工\s*单\s*(编号|号|瘘|史)?\s*[：:}\s]*(DH\d{16})", RegexOptions.IgnoreCase);
+            match = Regex.Match(text, @"工\s*单\s*(编号|号|瘘|史)?\s*[：:}\s]*(DH\d{17})", RegexOptions.IgnoreCase);
             if (match.Success && !string.IsNullOrEmpty(match.Groups[2].Value))
                 return match.Groups[2].Value;
             
@@ -253,20 +253,32 @@ namespace PicExcleApp.Services
         
         private string ExtractContent(string text)
         {
-            // 尝试提取投诉内容部分
-            var content = text.Trim();
+            // 尝试提取"诉求内容"关键词后面的文字
+            string content = string.Empty;
             
-            // 移除已经提取的信息
-            if (!string.IsNullOrEmpty(ExtractWorkOrderNumber(text)))
-                content = Regex.Replace(content, $@"工单[号:：]?\s*{ExtractWorkOrderNumber(text)}", "", RegexOptions.IgnoreCase);
-            
-            if (!string.IsNullOrEmpty(ExtractName(text)))
-                content = Regex.Replace(content, $@"姓名[：:]?\s*{ExtractName(text)}", "", RegexOptions.IgnoreCase);
-            
-            // 只在电话号码确实存在（不是空字符串且不是"****"）时才移除
-            var phoneNumber = ExtractPhone(text);
-            if (!string.IsNullOrEmpty(phoneNumber) && phoneNumber != "****")
-                content = Regex.Replace(content, $@"电话[：:]?\s*{phoneNumber}", "", RegexOptions.IgnoreCase);
+            // 使用正则表达式查找"诉求内容"关键词及其后面的所有文字
+            var match = Regex.Match(text, @"诉求内容[:：]?\s*(.+)", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+            if (match.Success && match.Groups.Count > 1)
+            {
+                content = match.Groups[1].Value.Trim();
+            }
+            else
+            {
+                // 如果没有找到"诉求内容"关键词，则使用原始逻辑
+                content = text.Trim();
+                
+                // 移除已经提取的信息
+                if (!string.IsNullOrEmpty(ExtractWorkOrderNumber(text)))
+                    content = Regex.Replace(content, $@"工单[号:：]?\s*{ExtractWorkOrderNumber(text)}", "", RegexOptions.IgnoreCase);
+                
+                if (!string.IsNullOrEmpty(ExtractName(text)))
+                    content = Regex.Replace(content, $@"姓名[：:]?\s*{ExtractName(text)}", "", RegexOptions.IgnoreCase);
+                
+                // 只在电话号码确实存在（不是空字符串且不是"****"）时才移除
+                var phoneNumber = ExtractPhone(text);
+                if (!string.IsNullOrEmpty(phoneNumber) && phoneNumber != "****")
+                    content = Regex.Replace(content, $@"电话[：:]?\s*{phoneNumber}", "", RegexOptions.IgnoreCase);
+            }
             
             // 移除投诉内容中汉字之间的所有空格
             content = RemoveExtraSpaces(content);
@@ -276,15 +288,43 @@ namespace PicExcleApp.Services
         
         private string CategorizeComplaint(string content)
         {
-            foreach (var keyword in _keywordConfig.KeywordToCategoryMap.Keys)
+            // 供热质量类关键词匹配
+            foreach (var keyword in _keywordConfig.HeatingQualityKeywords)
             {
                 if (content.Contains(keyword))
                 {
-                    return _keywordConfig.KeywordToCategoryMap[keyword];
+                    return "供热质量类";
                 }
             }
             
-            return "正常问题";
+            // 维修类关键词匹配
+            foreach (var keyword in _keywordConfig.MaintenanceKeywords)
+            {
+                if (content.Contains(keyword))
+                {
+                    return "维修类";
+                }
+            }
+            
+            // 政策咨询类关键词匹配
+            foreach (var keyword in _keywordConfig.PolicyKeywords)
+            {
+                if (content.Contains(keyword))
+                {
+                    return "政策咨询类";
+                }
+            }
+            
+            // 服务类关键词匹配
+            foreach (var keyword in _keywordConfig.ServiceKeywords)
+            {
+                if (content.Contains(keyword))
+                {
+                    return "服务类";
+                }
+            }
+            
+            return "无";
         }
         
         private string MatchHeatingArea(string content)
