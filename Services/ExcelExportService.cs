@@ -210,40 +210,56 @@ namespace PicExcleApp.Services
                     var complaintData = new ComplaintData();
 
                     // 尝试从不同列获取数据（根据实际Excel结构调整）
-                    complaintData.WorkOrderNumber = worksheet.Cells[row, 1]?.Text; // 工单号
-                    complaintData.Content = worksheet.Cells[row, 4]?.Text; // 投诉内容
-                    complaintData.Phone = worksheet.Cells[row, 13]?.Text; // 联系电话
+                    // 使用Value属性并转换为字符串，以处理数值类型的单元格
+                    complaintData.WorkOrderNumber = ConvertToString(worksheet.Cells[row, 1]?.Value); // 工单号
+                    complaintData.Content = ConvertToString(worksheet.Cells[row, 4]?.Value); // 投诉内容
+                    complaintData.Phone = ConvertToString(worksheet.Cells[row, 13]?.Value); // 联系电话
                     complaintData.HeatingArea = "";
                     complaintData.Result = "";
                     complaintData.Temperature = "";
                     complaintData.Source = "燃气表数据";
-                    complaintData.CreateTime = worksheet.Cells[row, 8]?.Text; // 信仿日期交办时间
+                    complaintData.CreateTime = ConvertToString(worksheet.Cells[row, 8]?.Value); // 信仿日期交办时间
 
                     // 基于关键词的分类赋值逻辑
                     string content = complaintData.Content ?? string.Empty;
                     if (!string.IsNullOrEmpty(content))
                     {
-                        // 使用公共关键词配置
-                        // 检查是否包含供热质量类关键词
-                        bool isHeatingQuality = _keywordConfig.HeatingQualityKeywords.Any(keyword => content.Contains(keyword));
-                        // 检查是否包含维修类关键词
-                        bool isMaintenance = _keywordConfig.MaintenanceKeywords.Any(keyword => content.Contains(keyword));
-                        // 检查是否包含政策咨询类关键词
-                        bool isPolicy = _keywordConfig.PolicyKeywords.Any(keyword => content.Contains(keyword));
-                        // 检查是否包含服务类关键词
-                        bool isService = _keywordConfig.ServiceKeywords.Any(keyword => content.Contains(keyword));
-
-                        // 设置分类优先级：供热质量类 > 维修类 > 政策咨询类 > 服务类
-                        if (isHeatingQuality)
-                            complaintData.Category = "供热质量类";
-                        else if (isMaintenance)
-                            complaintData.Category = "维修类";
-                        else if (isPolicy)
-                            complaintData.Category = "政策咨询类";
-                        else if (isService)
-                            complaintData.Category = "服务类";
-                        else
-                            complaintData.Category = "无";
+                        // 优先使用KeywordToCategoryMap进行匹配，这样可以支持从Excel动态加载的所有类别和关键词
+                        foreach (var keyword in _keywordConfig.KeywordToCategoryMap.Keys)
+                        {
+                            if (content.Contains(keyword))
+                            {
+                                complaintData.Category = _keywordConfig.KeywordToCategoryMap[keyword];
+                                break;
+                            }
+                        }
+                        
+                        // 如果没有匹配到，遍历所有动态加载的类别和关键词
+                        // 这样可以确保所有从Excel加载的类别（包括"测试类"）都能被正确匹配
+                        if (string.IsNullOrEmpty(complaintData.Category))
+                        {
+                            foreach (var category in _keywordConfig.CategoryToKeywordsMap.Keys)
+                            {
+                                foreach (var keyword in _keywordConfig.CategoryToKeywordsMap[category])
+                                {
+                                    if (content.Contains(keyword))
+                                    {
+                                        complaintData.Category = category;
+                                        break;
+                                    }
+                                }
+                                if (!string.IsNullOrEmpty(complaintData.Category))
+                                {
+                                    break;
+                                }
+                            }
+                            
+                            // 如果仍然没有匹配到，设置为"无"
+                            if (string.IsNullOrEmpty(complaintData.Category))
+                            {
+                                complaintData.Category = "无";
+                            }
+                        }
                     }
                     else
                     {
@@ -577,8 +593,19 @@ namespace PicExcleApp.Services
                     return null;
             }
         }
-
         
+        /// <summary>
+        /// 将对象转换为字符串，处理各种类型的值
+        /// </summary>
+        /// <param name="value">要转换的值</param>
+        /// <returns>转换后的字符串</returns>
+        private string ConvertToString(object value)
+        {
+            if (value == null)
+                return string.Empty;
+                
+            return value.ToString()?.Trim() ?? string.Empty;
+        }
 
     }
 }

@@ -288,39 +288,25 @@ namespace PicExcleApp.Services
         
         private string CategorizeComplaint(string content)
         {
-            // 供热质量类关键词匹配
-            foreach (var keyword in _keywordConfig.HeatingQualityKeywords)
+            // 完全优先使用从Excel动态加载的关键词和类别映射
+            foreach (var keyword in _keywordConfig.KeywordToCategoryMap.Keys)
             {
                 if (content.Contains(keyword))
                 {
-                    return "供热质量类";
+                    return _keywordConfig.KeywordToCategoryMap[keyword];
                 }
             }
             
-            // 维修类关键词匹配
-            foreach (var keyword in _keywordConfig.MaintenanceKeywords)
+            // 如果动态映射中没有匹配到，遍历所有动态加载的类别和关键词
+            // 这样可以确保所有从Excel加载的类别（包括"测试类"）都能被正确匹配
+            foreach (var category in _keywordConfig.CategoryToKeywordsMap.Keys)
             {
-                if (content.Contains(keyword))
+                foreach (var keyword in _keywordConfig.CategoryToKeywordsMap[category])
                 {
-                    return "维修类";
-                }
-            }
-            
-            // 政策咨询类关键词匹配
-            foreach (var keyword in _keywordConfig.PolicyKeywords)
-            {
-                if (content.Contains(keyword))
-                {
-                    return "政策咨询类";
-                }
-            }
-            
-            // 服务类关键词匹配
-            foreach (var keyword in _keywordConfig.ServiceKeywords)
-            {
-                if (content.Contains(keyword))
-                {
-                    return "服务类";
+                    if (content.Contains(keyword))
+                    {
+                        return category;
+                    }
                 }
             }
             

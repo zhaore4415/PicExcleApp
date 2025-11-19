@@ -858,8 +858,7 @@ namespace PicExcleApp
                         // 设置默认值
                         if (string.IsNullOrEmpty(data.Source))
                             data.Source = "燃气表导入";
-                        if (string.IsNullOrEmpty(data.Category))
-                            data.Category = "燃气相关";
+                        // 不再强制设置Category为"燃气相关"，保留ImportGasMeterData方法中已经正确设置的分类
                         if (string.IsNullOrEmpty(data.Result))
                             data.Result = string.Empty;
                     }
